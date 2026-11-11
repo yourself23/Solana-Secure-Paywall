@@ -1,0 +1,6 @@
+{
+  "name": "Solana Secure Paywall",
+  "description": "A secure paywall and digital asset store on the Solana blockchain.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
