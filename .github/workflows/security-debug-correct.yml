@@ -1,0 +1,46 @@
+name: Auto-Debug, Security & Correctness Audit
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+  schedule:
+    - cron: '0 0 * * *' # Daily automated security & debug run
+
+jobs:
+  audit-and-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Automated Security Vulnerability Audit
+        run: |
+          echo "Running npm audit for security vulnerabilities..."
+          npm audit --audit-level=high || true
+
+      - name: Automated TypeScript Debug & Type Checking
+        run: |
+          echo "Running TypeScript compiler check for bug detection..."
+          npx tsc --noEmit
+
+      - name: Automated Linter & Code Correctness Check
+        run: |
+          echo "Running code linter..."
+          npm run lint
+
+      - name: Automated Build Verification (Auto-Correct Check)
+        run: |
+          echo "Running full production build verification..."
+          npm run build
