@@ -124,7 +124,7 @@ export default function SalesConsole() {
                         <span className="text-xs font-mono uppercase">Total Revenue</span>
                         <DollarSign className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <div className="text-2xl font-black text-white font-mono">{totalRevenue.toFixed(1)} SOL</div>
+                    <div className="text-2xl font-black text-white font-mono">{totalRevenue.toFixed(1)} USDC</div>
                     <p className="text-[10px] text-emerald-400 flex items-center space-x-1">
                         <span>Direct to 2AoLHz...M2yhym</span>
                     </p>
@@ -213,7 +213,7 @@ export default function SalesConsole() {
                                         <td className="px-4 py-3 font-semibold text-white font-sans">{sale.libraryName}</td>
                                         <td className="px-4 py-3 text-indigo-300">{sale.sender}</td>
                                         <td className="px-4 py-3 text-emerald-400 font-bold">+{sale.callsGranted}</td>
-                                        <td className="px-4 py-3 text-white">{sale.amount} SOL</td>
+                                        <td className="px-4 py-3 text-white">{sale.amount} USDC</td>
                                         <td className="px-4 py-3 text-right">
                                             <a
                                                 href={`https://explorer.solana.com/tx/${sale.signature}?cluster=mainnet-beta`}

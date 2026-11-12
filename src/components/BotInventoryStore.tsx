@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Transaction, PublicKey } from '@solana/web3.js';
+import { createTransferInstruction, getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ShieldAlert, Loader2, Zap, Terminal, Database, Activity, ExternalLink, Code } from 'lucide-react';
 
 interface InventoryItem {
@@ -13,6 +14,10 @@ interface InventoryItem {
     priceSol: number;
     endpoint: string;
 }
+
+const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+const USDC_DECIMALS = 6;
+const PAYMENT_AMOUNT_USDC = 0.1;
 
 interface SaleRecord {
     id: string;
@@ -89,19 +94,37 @@ export default function BotInventoryStore() {
             }
 
             const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
-            
+
+            // Compute associated token accounts for USDC
+            const userAta = getAssociatedTokenAddressSync(USDC_MINT, publicKey, false);
+            const recipientAta = getAssociatedTokenAddressSync(USDC_MINT, targetAddress, false);
+
             const transaction = new Transaction();
             const latestBlockhash = await connection.getLatestBlockhash();
             transaction.recentBlockhash = latestBlockhash.blockhash;
             transaction.feePayer = publicKey;
 
-            // Transfer 0.1 SOL (Gas covered/sponsored delivery)
+            // Ensure recipient has an associated token account for USDC (create if missing)
             transaction.add(
-                SystemProgram.transfer({
-                    fromPubkey: publicKey,
-                    toPubkey: targetAddress,
-                    lamports: item.priceSol * LAMPORTS_PER_SOL,
-                })
+                createAssociatedTokenAccountInstruction(
+                    publicKey,        // payer
+                    recipientAta,     // associated token account to create
+                    targetAddress,    // owner
+                    USDC_MINT         // mint
+                )
+            );
+
+            // Transfer 0.1 USDC (6 decimals) from buyer to recipient
+            const amount = Math.floor(PAYMENT_AMOUNT_USDC * Math.pow(10, USDC_DECIMALS));
+            transaction.add(
+                createTransferInstruction(
+                    userAta,          // source
+                    recipientAta,     // destination
+                    publicKey,        // owner
+                    amount,           // amount with decimals
+                    [],
+                    TOKEN_PROGRAM_ID
+                )
             );
 
             const signature = await sendTransaction(transaction, connection);
@@ -119,7 +142,7 @@ export default function BotInventoryStore() {
                 wallet: `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`,
                 signature,
                 timestamp: new Date().toLocaleTimeString(),
-                amount: item.priceSol,
+                amount: PAYMENT_AMOUNT_USDC,
                 callsGranted: item.callsIncluded,
                 status: 'Confirmed'
             };
@@ -142,11 +165,11 @@ export default function BotInventoryStore() {
                     <div className="space-y-2">
                         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-800/60 text-indigo-300 text-xs font-mono">
                             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                            <span>HTTP 402 Botwall Active • 60 Calls / 0.1 SOL Payment</span>
+                            <span>HTTP 402 Botwall Active • 60 Calls / 0.1 USDC Payment</span>
                         </div>
                         <h2 className="text-2xl font-black text-white tracking-tight">Bot API Library Catalog</h2>
                         <p className="text-sm text-slate-400 max-w-2xl">
-                            Essential operational software libraries for bots on Solana. Each API library purchase unlocks 60 high-performance calls for 0.1 SOL. Revenue routes directly to the Solana deposit address with zero gas deduction.
+                            Essential operational software libraries for bots on Solana. Each API library purchase unlocks 60 high-performance calls for 0.1 USDC. Revenue routes directly to the Solana deposit address with zero gas deduction.
                         </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -178,7 +201,7 @@ export default function BotInventoryStore() {
                         <Database className="w-5 h-5 text-indigo-400" />
                         <span>Available Bot API Libraries for Sale ({BOT_INVENTORY_ITEMS.length})</span>
                     </div>
-                    <span className="text-xs font-mono text-slate-400">Pricing: 0.1 SOL = 60 Calls</span>
+                    <span className="text-xs font-mono text-slate-400">Pricing: 0.1 USDC = 60 Calls</span>
                 </div>
 
                 <div className="space-y-3">
@@ -207,7 +230,7 @@ export default function BotInventoryStore() {
 
                                 <div className="flex items-center space-x-4 w-full md:w-auto justify-between md:justify-end pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
                                     <div className="text-right">
-                                        <div className="text-base font-black text-emerald-400 font-mono">0.1 SOL</div>
+                                        <div className="text-base font-black text-emerald-400 font-mono">0.1 USDC</div>
                                         <div className="text-[10px] text-slate-400 font-mono">60 API Calls</div>
                                     </div>
 
@@ -274,7 +297,7 @@ export default function BotInventoryStore() {
                                     <td className="px-4 py-3.5 font-semibold text-white font-sans">{sale.itemName}</td>
                                     <td className="px-4 py-3.5 text-indigo-300">{sale.wallet}</td>
                                     <td className="px-4 py-3.5 text-emerald-400 font-bold">+{sale.callsGranted} Calls</td>
-                                    <td className="px-4 py-3.5 text-white">{sale.amount} SOL</td>
+                                    <td className="px-4 py-3.5 text-white">{sale.amount} USDC</td>
                                     <td className="px-4 py-3.5">
                                         <span className="px-2 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/50">
                                             {sale.status}

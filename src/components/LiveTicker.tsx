@@ -8,9 +8,9 @@ interface TelemetryItem {
 
 export default function LiveTicker() {
     const [telemetry, setTelemetry] = useState<TelemetryItem[]>([
-        { id: '1', text: '0.1 SOL received from 7xKX...3v9N [Solana Sniper Daemon v4 - 60 Calls]', time: 'Just now' },
+        { id: '1', text: '0.1 USDC received from 7xKX...3v9N [Solana Sniper Daemon v4 - 60 Calls]', time: 'Just now' },
         { id: '2', text: 'Payout sweep executed to 2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym', time: '1m ago' },
-        { id: '3', text: '0.1 SOL received from 9mQ2...1w8R [Jito Bundle Dispatcher - 60 Calls]', time: '3m ago' }
+        { id: '3', text: '0.1 USDC received from 9mQ2...1w8R [Jito Bundle Dispatcher - 60 Calls]', time: '3m ago' }
     ]);
 
     useEffect(() => {

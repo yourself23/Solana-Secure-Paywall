@@ -1,8 +1,13 @@
 import React, {useCallback, useState} from 'react';
 import {useConnection, useWallet} from '@solana/wallet-adapter-react';
 import {WalletMultiButton} from '@solana/wallet-adapter-react-ui';
-import {Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL} from '@solana/web3.js';
+import {Transaction, PublicKey} from '@solana/web3.js';
+import {createTransferInstruction, getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { ShieldAlert, Lock, CheckCircle2, Loader2, Zap, Terminal, Fuel } from 'lucide-react';
+
+const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+const USDC_DECIMALS = 6;
+const PAYMENT_AMOUNT_USDC = 0.1;
 
 export default function Paywall() {
     const {connection} = useConnection();
@@ -27,23 +32,39 @@ export default function Paywall() {
             }
 
             const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
-            
-            // Construct transaction ensuring 0.1 SOL lands fully without gas burden on recipient
-            // Gas fee is sponsored/covered by the platform or transaction configuration
+
+            // Compute associated token accounts for USDC
+            const userAta = getAssociatedTokenAddressSync(USDC_MINT, publicKey, false);
+            const recipientAta = getAssociatedTokenAddressSync(USDC_MINT, targetAddress, false);
+
             const transaction = new Transaction();
-            
+
             // Recent blockhash
             const latestBlockhash = await connection.getLatestBlockhash();
             transaction.recentBlockhash = latestBlockhash.blockhash;
             transaction.feePayer = publicKey;
 
-            // Add transfer instruction (0.1 SOL)
+            // Ensure recipient has an associated token account for USDC (create if missing)
             transaction.add(
-                SystemProgram.transfer({
-                    fromPubkey: publicKey,
-                    toPubkey: targetAddress,
-                    lamports: 0.1 * LAMPORTS_PER_SOL,
-                })
+                createAssociatedTokenAccountInstruction(
+                    publicKey,        // payer
+                    recipientAta,     // associated token account to create
+                    targetAddress,    // owner
+                    USDC_MINT         // mint
+                )
+            );
+
+            // Transfer 0.1 USDC (6 decimals) from buyer to recipient
+            const amount = Math.floor(PAYMENT_AMOUNT_USDC * Math.pow(10, USDC_DECIMALS));
+            transaction.add(
+                createTransferInstruction(
+                    userAta,          // source
+                    recipientAta,     // destination
+                    publicKey,        // owner
+                    amount,           // amount with decimals
+                    [],
+                    TOKEN_PROGRAM_ID
+                )
             );
 
             const signature = await sendTransaction(transaction, connection);
@@ -63,23 +84,23 @@ export default function Paywall() {
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                            <Lock className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-white tracking-tight">Solana Botwall Paywall</h2>
-                            <p className="text-xs text-slate-400">Gas-Covered Zero-Fee Recipient Settlement</p>
-                        </div>
+<div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center space-x-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                        <Lock className="w-6 h-6" />
                     </div>
-                    <div className="text-right">
-                        <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-                            0.1 SOL
-                        </span>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Exact Net Delivery</p>
+                    <div>
+                        <h2 className="text-xl font-bold text-white tracking-tight">Solana Botwall Paywall</h2>
+                        <p className="text-xs text-slate-400">Gas-Covered Zero-Fee Recipient Settlement</p>
                     </div>
                 </div>
+                <div className="text-right">
+                    <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+                        0.1 USDC
+                    </span>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Exact Net Delivery</p>
+                </div>
+            </div>
 
                 {/* Hidden Honeypot Field (Bot Trap) */}
                 <div className="hidden" aria-hidden="true">
@@ -123,7 +144,7 @@ export default function Paywall() {
                                 ) : (
                                     <>
                                         <Terminal className="w-5 h-5" />
-                                        <span>Pay 0.1 SOL (Gas Covered)</span>
+                                        <span>Pay 0.1 USDC (Gas Covered)</span>
                                     </>
                                 )}
                             </button>
