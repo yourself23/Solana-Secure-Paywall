@@ -11,9 +11,9 @@
   },
   "payment": {
     "recipient": "2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym",
-    "amountBaseUnits": "10000000",
-    "amountUsdc": 10,
-    "creditsPerPayment": 60,
+    "amountBaseUnits": "100000",
+    "amountUsdc": 0.1,
+    "creditsPerPayment": 10,
     "freeTrialCalls": 0,
     "paywallEndpoint": "https:///usr/local/bin/node,solana-secure-paywall.vercel.app/api/paywall"
   },

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Allow: /.well-known/x402.json
+Allow: /SKILL.md
+Allow: /llms.txt
