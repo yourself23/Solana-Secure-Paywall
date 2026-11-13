@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   const forwarded = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(forwarded) ? forwarded : (forwarded?.split(',')?.trim() || 'anonymous');
+  const ip = (Array.isArray(forwarded) ? forwarded.at(0) : forwarded?.split(",").at(0))?.trim() || "anonymous";
   const rateKey = `rl:paywall:${ip}:${Math.floor(Date.now() / 60000)}`;
   const rlRes = await upstash(['INCR', rateKey]);
   if (rlRes.result === 1) await upstash(['EXPIRE', rateKey, 60]);
