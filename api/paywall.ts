@@ -32,15 +32,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Server configuration incomplete: Upstash Redis credentials missing' });
   }
 
-  const { signature, wallet, libraryId = 'default' } = req.body || {};
-  if (
-    typeof signature !== 'string' || signature.length < 64 || signature.length > 100 ||
-    typeof wallet !== 'string' || wallet.length < 32 || wallet.length > 44 ||
-    typeof libraryId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(libraryId)
-  ) {
-    return res.status(400).json({ error: 'Invalid signature, wallet, or libraryId' });
-  }
-
   const upstash = async (cmd: (string | number)[]) => {
     const r = await fetch(redisUrl, {
       method: 'POST',
@@ -61,6 +52,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (rlRes.result === 1) await upstash(['EXPIRE', rateKey, 60]);
   if (Number(rlRes.result) > 30) {
     return res.status(429).json({ error: 'Too many requests. Please wait before retrying.' });
+  }
+
+  const { signature, wallet, libraryId = 'default' } = req.body || {};
+  if (
+    typeof signature !== 'string' || signature.length < 64 || signature.length > 100 ||
+    typeof wallet !== 'string' || wallet.length < 32 || wallet.length > 44 ||
+    typeof libraryId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(libraryId)
+  ) {
+    return res.status(400).json({ error: 'Invalid signature, wallet, or libraryId' });
   }
 
   const sigKey = `spent_sol_sig:${signature}`;
