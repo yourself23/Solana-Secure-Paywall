@@ -15,9 +15,9 @@
     "amountUsdc": 10,
     "creditsPerPayment": 60,
     "freeTrialCalls": 0,
-    "paywallEndpoint": "https://vercel.app"
+    "paywallEndpoint": "https://solana-secure-paywall.vercel.app/api/paywall"
   },
-  "invokeEndpoint": "https://vercel.app",
+  "invokeEndpoint": "https://solana-secure-paywall.vercel.app/api/v1/invoke",
   "authScheme": "solana-ed25519-header",
   "libraries": [
     "solana-sniper-daemon",
