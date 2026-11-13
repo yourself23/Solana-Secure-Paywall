@@ -87,6 +87,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
     const units = Math.round(amountUsdc * 1_000_000);
     await logEvent('INVOKE_402', `Paywall hit by ${wallet.slice(0, 6)}... on ${lib}`);
+    
+    const x402Payload = Buffer.from(JSON.stringify({
+      x402Version: 2,
+      accepts: [{
+        scheme: "exact",
+        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        amount: units.toString(),
+        asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        payTo: receiver,
+        maxTimeoutSeconds: 300
+      }]
+    })).toString("base64");
+    res.setHeader("PAYMENT-REQUIRED", x402Payload);
+
     res.setHeader('X-Payment-Required', 'true');
     res.setHeader('X-Payment-Amount', units.toString());
     res.setHeader('X-Payment-Recipient', receiver);

@@ -30,6 +30,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     await logEvent('402_CHALLENGE', `Quoted ${amountUsdc} USDC`);
+    
+    const x402Payload = Buffer.from(JSON.stringify({
+      x402Version: 2,
+      accepts: [{
+        scheme: "exact",
+        network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        amount: requiredUnits.toString(),
+        asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        payTo: receiver,
+        maxTimeoutSeconds: 300
+      }]
+    })).toString("base64");
+    res.setHeader("PAYMENT-REQUIRED", x402Payload);
+
     res.setHeader('X-Payment-Required', 'true');
     res.setHeader('X-Payment-Amount', requiredUnits.toString());
     res.setHeader('X-Payment-Recipient', receiver);
