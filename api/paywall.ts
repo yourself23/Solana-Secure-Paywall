@@ -1,41 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Connection, ParsedTransactionWithMeta } from '@solana/web3.js';
-import { Redis } from '@upstash/redis';
-import { Ratelimit } from '@upstash/ratelimit';
-import { z } from 'zod';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
-
-const ratelimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(30, '1 m'),
-});
-
-const connection = new Connection(
-  process.env.SOLANA_RPC_URL || 'https://solana.com',
-  'confirmed'
-);
-
-const PAYWALL_SCHEMA = z.object({
-  signature: z.string().min(64, 'Invalid transaction signature').max(100),
-  wallet: z.string().min(32, 'Invalid Solana wallet address').max(44),
-  libraryId: z.string().regex(/^[a-zA-Z0-9_-]+$/).optional().default('default'),
-});
-
-function getLamportsReceived(tx: ParsedTransactionWithMeta, receiver: string): number {
-  if (!tx.meta || tx.meta.err) return 0;
-  const idx = tx.transaction.message.accountKeys.findIndex(
-    (k) => k.pubkey.toBase58() === receiver
-  );
-  if (idx === -1) return 0;
-  return (tx.meta.postBalances[idx] ?? 0) - (tx.meta.preBalances[idx] ?? 0);
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const receiver = process.env.TREASURY_ADDRESS;
+  const receiver = process.env.TREASURY_ADDRESS?.trim();
   if (!receiver) {
     return res.status(500).json({ error: 'Server configuration incomplete: TREASURY_ADDRESS missing' });
   }
@@ -60,71 +26,108 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (!redisUrl || !redisToken) {
+    return res.status(500).json({ error: 'Server configuration incomplete: Upstash Redis credentials missing' });
+  }
+
+  const { signature, wallet, libraryId = 'default' } = req.body || {};
+  if (
+    typeof signature !== 'string' || signature.length < 64 || signature.length > 100 ||
+    typeof wallet !== 'string' || wallet.length < 32 || wallet.length > 44 ||
+    typeof libraryId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(libraryId)
+  ) {
+    return res.status(400).json({ error: 'Invalid signature, wallet, or libraryId' });
+  }
+
+  const upstash = async (cmd: (string | number)[]) => {
+    const r = await fetch(redisUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cmd),
+    });
+    if (!r.ok) throw new Error(`Upstash HTTP ${r.status}`);
+    return r.json();
+  };
+
   const forwarded = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(forwarded) ? forwarded[0] : (forwarded?.split(',')[0] || 'anonymous');
-  const { success: withinLimit } = await ratelimit.limit(`paywall:${ip}`);
-  if (!withinLimit) {
+  const ip = Array.isArray(forwarded) ? forwarded[0] : (forwarded?.split(',')[0]?.trim() || 'anonymous');
+  const rateKey = `rl:paywall:${ip}:${Math.floor(Date.now() / 60000)}`;
+  const rlRes = await upstash(['INCR', rateKey]);
+  if (rlRes.result === 1) await upstash(['EXPIRE', rateKey, 60]);
+  if (Number(rlRes.result) > 30) {
     return res.status(429).json({ error: 'Too many requests. Please wait before retrying.' });
   }
 
-  const parsed = PAYWALL_SCHEMA.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: 'Invalid request payload',
-      details: parsed.error.flatten().fieldErrors,
-    });
-  }
-
-  const { signature, wallet, libraryId } = parsed.data;
   const sigKey = `spent_sol_sig:${signature}`;
-
-  const claimed = await redis.set(sigKey, wallet, { nx: true, ex: 86400 * 30 });
-  if (claimed !== 'OK') {
+  const claimRes = await upstash(['SET', sigKey, wallet, 'EX', 86400 * 30, 'NX']);
+  if (claimRes.result !== 'OK') {
     return res.status(402).json({ error: 'Transaction signature already redeemed' });
   }
 
   try {
-    const tx = await connection.getParsedTransaction(signature, {
-      commitment: 'confirmed',
-      maxSupportedTransactionVersion: 0,
+    const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || 'https://solana.com';
+    const rpcRes = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getTransaction',
+        params: [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }],
+      }),
     });
 
+    const rpcData = await rpcRes.json();
+    const tx = rpcData?.result;
+
     if (!tx) {
-      await redis.del(sigKey);
+      await upstash(['DEL', sigKey]);
       return res.status(402).json({ error: 'Transaction not found or not yet confirmed on-chain' });
     }
 
     if (tx.meta?.err) {
-      await redis.del(sigKey);
+      await upstash(['DEL', sigKey]);
       return res.status(402).json({ error: 'Transaction failed on-chain' });
     }
 
-    const signer = tx.transaction.message.accountKeys.find((k) => k.signer)?.pubkey.toBase58();
+    const accountKeys = tx.transaction?.message?.accountKeys || [];
+    const signer = accountKeys.find((k: any) => k.signer)?.pubkey;
     if (signer !== wallet) {
-      await redis.del(sigKey);
+      await upstash(['DEL', sigKey]);
       return res.status(402).json({ error: 'Transaction signer does not match requesting wallet' });
     }
 
-    const receivedLamports = getLamportsReceived(tx, receiver);
+    const receiverIdx = accountKeys.findIndex((k: any) => k.pubkey === receiver);
+    if (receiverIdx === -1) {
+      await upstash(['DEL', sigKey]);
+      return res.status(402).json({ error: 'Paywall recipient not found in transaction' });
+    }
+
+    const receivedLamports = (tx.meta.postBalances?.[receiverIdx] ?? 0) - (tx.meta.preBalances?.[receiverIdx] ?? 0);
     if (receivedLamports < requiredLamports) {
-      await redis.del(sigKey);
+      await upstash(['DEL', sigKey]);
       return res.status(402).json({
         error: `Insufficient SOL transfer: received ${receivedLamports} lamports, expected ${requiredLamports}`,
       });
     }
 
-    const newCredits = await redis.hincrby(`credits:${wallet}`, libraryId, callsPerPayment);
+    const creditRes = await upstash(['HINCRBY', `credits:${wallet}`, libraryId, callsPerPayment]);
 
     return res.status(200).json({
       success: true,
       message: 'Paywall access granted',
       depositAddress: receiver,
-      credits: newCredits,
+      credits: creditRes.result,
       amount: amountSol,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
-    await redis.del(sigKey);
+    await upstash(['DEL', sigKey]);
     return res.status(503).json({
       error: 'Solana RPC verification unavailable',
       details: err?.message || 'Unknown RPC error',
