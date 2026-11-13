@@ -42,6 +42,15 @@ function verifySig(wallet: string, ts: string, sig: string): boolean {
   } catch { return false; }
 }
 
+function extractTxSignature(paymentHeader: string): string | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(paymentHeader, 'base64').toString('utf8'));
+    return decoded?.payload?.signature || decoded?.payload?.transaction || decoded?.signature || null;
+  } catch {
+    return paymentHeader.length >= 64 && paymentHeader.length <= 100 ? paymentHeader : null;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
@@ -64,89 +73,123 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const send402Challenge = async (reason: string) => {
-    const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '0.10');
-    const units = Math.round(amountUsdc * 1_000_000);
-    const x402Payload = Buffer.from(JSON.stringify({
-      x402Version: 2,
-      accepts: [{
-        scheme: 'exact',
-        network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
-        amount: units.toString(),
-        asset: USDC_MINT,
-        payTo: receiver,
-        maxTimeoutSeconds: 300,
-        mimeType: 'application/json',
-        description: 'Solana Mainnet MEV, Jito Bundle, and Sniper Execution Gateway (10 API credits)',
-      }],
-    })).toString('base64');
-
-    await logEvent('CRAWLER_PROBE_402', reason);
-    res.setHeader('PAYMENT-REQUIRED', x402Payload);
-    res.setHeader('X-Payment-Required', 'true');
-    res.setHeader('X-Payment-Amount', units.toString());
-    res.setHeader('X-Payment-Recipient', receiver);
-    res.setHeader('X-Payment-Network', 'solana-mainnet');
-    res.setHeader('X-Payment-Asset', 'USDC');
-    res.setHeader('X-Payment-Mint', USDC_MINT);
-
-    return res.status(402).json({
-      error: 'Payment Required',
-      x402Version: 2,
-      network: 'solana-mainnet',
-      asset: 'USDC',
-      mint: USDC_MINT,
-      depositAddress: receiver,
-      amountBaseUnits: units,
-      amountUsdc,
-    });
-  };
-
-  const wallet = (req.headers['x-wallet-address'] as string)?.trim();
-  const ts = (req.headers['x-auth-timestamp'] as string)?.trim();
-  const sig = (req.headers['x-auth-signature'] as string)?.trim();
+  const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '0.10');
+  const units = Math.round(amountUsdc * 1_000_000);
   const lib = ((req.query?.libraryId || req.body?.libraryId || 'solana-sniper-daemon') as string).trim();
-
-  // Always issue standard x402 v2 402 challenge first on bare/unauthenticated probes
-  if (!wallet || !ts || !sig) {
-    return send402Challenge(`Unauthenticated x402 probe on ${lib}`);
-  }
 
   if (!ALLOWED.has(lib)) {
     return res.status(400).json({ error: 'Unsupported libraryId', supportedLibraries: Array.from(ALLOWED) });
   }
 
-  if (!verifySig(wallet, ts, sig)) {
-    await logEvent('AUTH_FAILED', `Bad sig from ${wallet.slice(0, 6)}...`);
-    return res.status(403).json({ error: 'Invalid or expired Solana wallet signature' });
+  // 1. Native x402 v2 Header Flow (agentcash / autonomous x402 clients)
+  const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
+  if (paymentHeader) {
+    const txSig = extractTxSignature(paymentHeader.trim());
+    if (!txSig) return res.status(402).json({ error: 'Invalid PAYMENT-SIGNATURE header format' });
+
+    const sigKey = `spent_usdc_sig:${txSig}`;
+    const claim = await upstash(['SET', sigKey, 'x402-header', 'EX', 2592000, 'NX']);
+    if (claim.result !== 'OK') {
+      await logEvent('REPLAY_BLOCKED', `Duplicate x402 header tx ${txSig.slice(0, 8)}...`);
+      return res.status(402).json({ error: 'Transaction signature already redeemed' });
+    }
+
+    const fallbackRpc = ['https:/', '://solana.com'].join('/');
+    const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || fallbackRpc;
+    const rpcRes = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [txSig, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }] }),
+    });
+    const tx = (await rpcRes.json())?.result;
+    if (!tx || tx.meta?.err) {
+      await upstash(['DEL', sigKey]);
+      return res.status(402).json({ error: 'Transaction not found or not yet confirmed on-chain' });
+    }
+
+    const postEntry = (tx.meta?.postTokenBalances || []).find((b: any) => b.mint === USDC_MINT && b.owner === receiver);
+    const preEntry = (tx.meta?.preTokenBalances || []).find((b: any) => b.accountIndex === postEntry?.accountIndex);
+    const received = BigInt(postEntry?.uiTokenAmount?.amount || '0') - BigInt(preEntry?.uiTokenAmount?.amount || '0');
+
+    if (received < BigInt(units)) {
+      await upstash(['DEL', sigKey]);
+      return res.status(402).json({ error: 'Insufficient USDC transfer' });
+    }
+
+    await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', amountUsdc]);
+    await logEvent('AGENTCASH_PAID', `+${amountUsdc} USDC via x402 header on ${lib}`);
+    res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, txHash: txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
+
+    return res.status(200).json({
+      success: true,
+      libraryId: lib,
+      accessMode: 'x402-direct',
+      txSignature: txSig,
+      data: { status: 'dispatched', engine: lib, network: 'solana-mainnet' },
+    });
   }
 
-  let hasCredit = false;
-  let remaining = 0;
+  // 2. Prepaid Credit + Ed25519 Header Flow
+  const wallet = (req.headers['x-wallet-address'] as string)?.trim();
+  const ts = (req.headers['x-auth-timestamp'] as string)?.trim();
+  const sig = (req.headers['x-auth-signature'] as string)?.trim();
 
-  for (const bucket of [lib, 'default']) {
-    const check = await upstash(['HGET', `credits:${wallet}`, bucket]);
-    if (Number(check.result ?? 0) > 0) {
-      const decr = await upstash(['HINCRBY', `credits:${wallet}`, bucket, -1]);
-      if (Number(decr.result ?? -1) >= 0) {
-        hasCredit = true;
-        remaining = Number(decr.result);
-        break;
+  if (wallet && ts && sig) {
+    if (!verifySig(wallet, ts, sig)) {
+      await logEvent('AUTH_FAILED', `Bad sig from ${wallet.slice(0, 6)}...`);
+      return res.status(403).json({ error: 'Invalid or expired Solana wallet signature' });
+    }
+    for (const bucket of [lib, 'default']) {
+      const check = await upstash(['HGET', `credits:${wallet}`, bucket]);
+      if (Number(check.result ?? 0) > 0) {
+        const decr = await upstash(['HINCRBY', `credits:${wallet}`, bucket, -1]);
+        if (Number(decr.result ?? -1) >= 0) {
+          await logEvent('INVOKE_PAID', `${wallet.slice(0, 6)}... ran ${lib} (${decr.result} left)`);
+          return res.status(200).json({
+            success: true,
+            libraryId: lib,
+            accessMode: 'paid',
+            remainingCalls: Number(decr.result),
+            data: { status: 'dispatched', engine: lib, network: 'solana-mainnet' },
+          });
+        }
+        await upstash(['HINCRBY', `credits:${wallet}`, bucket, 1]);
       }
-      await upstash(['HINCRBY', `credits:${wallet}`, bucket, 1]);
     }
   }
 
-  if (!hasCredit) {
-    return send402Challenge(`Zero credits for ${wallet.slice(0, 6)}... on ${lib}`);
-  }
+  // 3. Issue Standard x402 v2 402 Challenge
+  const x402Payload = Buffer.from(JSON.stringify({
+    x402Version: 2,
+    accepts: [{
+      scheme: 'exact',
+      network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+      amount: units.toString(),
+      asset: USDC_MINT,
+      payTo: receiver,
+      maxTimeoutSeconds: 300,
+      mimeType: 'application/json',
+      description: 'Solana Mainnet MEV, Jito Bundle, and Sniper Execution Gateway',
+    }],
+  })).toString('base64');
 
-  await logEvent('INVOKE_PAID', `${wallet.slice(0, 6)}... ran ${lib} (${remaining} left)`);
-  return res.status(200).json({
-    success: true,
-    libraryId: lib,
-    accessMode: 'paid',
-    remainingCalls: remaining,
-    data: { status: 'dispatched', engine: lib, network: 'solana-mainnet' },
+  await logEvent('CRAWLER_PROBE_402', `Served x402 v2 quote on ${lib}`);
+  res.setHeader('PAYMENT-REQUIRED', x402Payload);
+  res.setHeader('X-Payment-Required', 'true');
+  res.setHeader('X-Payment-Amount', units.toString());
+  res.setHeader('X-Payment-Recipient', receiver);
+  res.setHeader('X-Payment-Network', 'solana-mainnet');
+  res.setHeader('X-Payment-Asset', 'USDC');
+  res.setHeader('X-Payment-Mint', USDC_MINT);
+
+  return res.status(402).json({
+    error: 'Payment Required',
+    x402Version: 2,
+    network: 'solana-mainnet',
+    asset: 'USDC',
+    mint: USDC_MINT,
+    depositAddress: receiver,
+    amountBaseUnits: units,
+    amountUsdc,
   });
 }
