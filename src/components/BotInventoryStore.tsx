@@ -88,7 +88,7 @@ export default function BotInventoryStore() {
                 throw new Error('HTTP 402 Payment Required: Bot trap triggered. Automated scraper blocked.');
             }
 
-            const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetAddress = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
             
             const transaction = new Transaction();
             const latestBlockhash = await connection.getLatestBlockhash();

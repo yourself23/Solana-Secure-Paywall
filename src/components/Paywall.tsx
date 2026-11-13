@@ -26,7 +26,7 @@ export default function Paywall() {
                 throw new Error('Bot trap triggered: Automated scraping detected. Request blocked.');
             }
 
-            const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetAddress = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
             
             // Construct transaction ensuring 0.1 SOL lands fully without gas burden on recipient
             // Gas fee is sponsored/covered by the platform or transaction configuration
@@ -100,7 +100,7 @@ export default function Paywall() {
                             </span>
                         </div>
                         <div className="font-mono text-xs text-indigo-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 break-all select-all">
-                            2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym
+                            {import.meta.env.VITE_TREASURY_ADDRESS}
                         </div>
                     </div>
 

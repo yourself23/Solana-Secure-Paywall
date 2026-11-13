@@ -28,7 +28,7 @@ export default function SalesLog() {
         setLoading(true);
         setError(null);
         try {
-            const targetPubkey = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetPubkey = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
             const signatures: ConfirmedSignatureInfo[] = await connection.getSignaturesForAddress(targetPubkey, { limit: 15 });
 
             if (signatures && signatures.length > 0) {

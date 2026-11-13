@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+.env
+.env.*
+*.bak
+.vercel

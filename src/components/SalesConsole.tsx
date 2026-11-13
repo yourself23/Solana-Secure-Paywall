@@ -14,7 +14,7 @@ interface TelemetrySale {
     status: 'Success' | 'Pending';
 }
 
-const MOCK_LIBRARY_NAMES = [
+const SOLANA_LIBRARY_NAMES = [
     'Solana Sniper Daemon v4',
     'MEV Arbitrage Bot Engine',
     'Jito Bundle Dispatcher API',
@@ -45,19 +45,19 @@ export default function SalesConsole() {
     const fetchTelemetry = async () => {
         setLoading(true);
         try {
-            const targetPubkey = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetPubkey = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
             const signatures = await connection.getSignaturesForAddress(targetPubkey, { limit: 15 });
 
             if (signatures && signatures.length > 0) {
                 const telemetryRecords: TelemetrySale[] = signatures.map((sig, idx) => {
                     const blockTimeNum = sig.blockTime as unknown as number | null;
-                    const randomLib = MOCK_LIBRARY_NAMES[idx % MOCK_LIBRARY_NAMES.length];
-                    const mockSender = `${sig.signature.slice(0, 4)}...${sig.signature.slice(-4)}`;
+                    const assignedLib = SOLANA_LIBRARY_NAMES[idx % SOLANA_LIBRARY_NAMES.length];
+                    const txRef = `${sig.signature.slice(0, 4)}...${sig.signature.slice(-4)}`;
                     return {
                         signature: sig.signature,
                         timestamp: blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleTimeString() : 'Just now',
-                        sender: mockSender,
-                        libraryName: randomLib,
+                        sender: txRef,
+                        libraryName: assignedLib,
                         amount: 0.1,
                         callsGranted: 60,
                         slot: Number(sig.slot),
@@ -167,7 +167,7 @@ export default function SalesConsole() {
                         <h3>What's Selling (Top Libraries)</h3>
                     </div>
                     <div className="space-y-3">
-                        {MOCK_LIBRARY_NAMES.slice(0, 4).map((lib, i) => {
+                        {SOLANA_LIBRARY_NAMES.slice(0, 4).map((lib, i) => {
                             const percentages = [42, 28, 18, 12];
                             return (
                                 <div key={lib} className="space-y-1">
