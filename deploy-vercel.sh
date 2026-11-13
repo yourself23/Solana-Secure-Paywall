@@ -24,6 +24,7 @@ REQUIRED_SECRETS=(
     "API_CALLS_PER_PAYMENT"
     "PAYOUT_INTERVAL_MINUTES"
     "API_AUTH_SECRET"
+    "CRON_SECRET"
     "UPSTASH_REDIS_REST_URL"
     "UPSTASH_REDIS_REST_TOKEN"
 )
@@ -50,6 +51,10 @@ done
 echo ""
 echo "IMPORTANT: Set these secrets in Vercel Dashboard:"
 echo "  https://vercel.com/dashboard -> Project -> Settings -> Environment Variables"
+echo ""
+echo "⚠️  VERCEL CRON LIMITATION: The vercel.json cron schedule (*/5 * * * *) requires Vercel Pro plan."
+echo "    On Hobby (free) tier, cron jobs are limited to once per day."
+echo "    Options: Upgrade to Pro, or use Upstash QStash for free per-minute scheduling."
 echo ""
 echo "Or use Vercel CLI (values will be prompted securely):"
 for secret in "${REQUIRED_SECRETS[@]}"; do
