@@ -14,7 +14,7 @@
     "amountBaseUnits": "10000000",
     "amountUsdc": 10,
     "creditsPerPayment": 60,
-    "freeTrialCalls": 2,
+    "freeTrialCalls": 0,
     "paywallEndpoint": "https://vercel.app"
   },
   "invokeEndpoint": "https://vercel.app",

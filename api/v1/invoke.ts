@@ -83,13 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  if (mode === 'none') {
-    const trial = await upstash(['INCR', `trials:${wallet}`]);
-    if (Number(trial.result ?? 99) <= 2) { mode = 'trial'; remaining = 2 - Number(trial.result); }
-    else { await upstash(['DECR', `trials:${wallet}`]); }
-  }
-
-  if (mode === 'none') {
+    if (mode === 'none') {
     const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
     const units = Math.round(amountUsdc * 1_000_000);
     await logEvent('INVOKE_402', `Paywall hit by ${wallet.slice(0, 6)}... on ${lib}`);

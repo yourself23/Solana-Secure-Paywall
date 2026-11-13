@@ -1,6 +1,6 @@
 # Solana Secure Paywall — Autonomous Bot & AI Agent API Gateway
 
-Direct, non-custodial Solana execution, sniper, Jito bundle, and arbitrage APIs gated by **x402 Solana SPL USDC** credit bundles (**10 USDC = 60 API calls**) with **2 free trial calls** per wallet.
+Direct, non-custodial Solana execution, sniper, Jito bundle, and arbitrage APIs gated by **x402 Solana SPL USDC** credit bundles (**10 USDC = 60 API calls**) with **zero free trials — 100% paid USDC access**.
 
 - **Live Gateway:** https://solana-secure-paywall.vercel.app
 - **x402 Discovery Manifest:** https://solana-secure-paywall.vercel.app/.well-known/x402.json
