@@ -1,0 +1,155 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Solana Secure Paywall — MEV, Jito & Sniper Execution Gateway",
+    "version": "1.0.0",
+    "description": "Non-custodial Solana Mainnet execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
+    "x-guidance": "Use POST /api/v1/invoke to execute any of the 12 Solana trading, sniper, or Jito bundle engines. On HTTP 402, send 0.10 USDC (100000 atomic units) on Solana Mainnet to the payTo address and POST the confirmed transaction signature to /api/paywall to unlock 10 API calls.",
+    "contact": {
+      "email": "timothyhuff25@gmail.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://solana-secure-paywall.vercel.app",
+      "description": "Solana Mainnet Production Gateway"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "solanaEd25519": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-auth-signature",
+        "description": "Base58 detached Ed25519 signature of 'invoke:<wallet>:<timestamp>' paired with x-wallet-address and x-auth-timestamp headers."
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/invoke": {
+      "post": {
+        "operationId": "invokeSolanaEngine",
+        "summary": "Invoke a Solana MEV, Jito bundle, sniper, or arbitrage engine",
+        "tags": ["Solana Execution", "MEV", "Trading"],
+        "security": [{ "solanaEd25519": [] }],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.100000"
+          },
+          "protocols": [{ "x402": {} }]
+        },
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "query",
+            "required": true,
+            "description": "Target Solana engine ID (e.g., solana-sniper-daemon, jito-bundle-dispatcher, mev-arbitrage-bot)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "solana-sniper-daemon",
+                "mev-arbitrage-bot",
+                "jito-bundle-dispatcher",
+                "liquidity-pool-sniffer",
+                "raydium-swap-automator",
+                "pump-fun-bonding-curve",
+                "whale-wallet-tracker",
+                "flash-loan-arbitrage",
+                "multi-wallet-jito-injector",
+                "limit-order-sniper",
+                "cross-dex-router",
+                "mempool-alpha-scanner"
+              ],
+              "default": "solana-sniper-daemon"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "libraryId": { "type": "string", "description": "Optional engine override if not passed in query string" },
+                  "pair": { "type": "string", "description": "Trading pair such as SOL/USDC", "default": "SOL/USDC" },
+                  "slippageBps": { "type": "integer", "description": "Maximum slippage tolerance in basis points", "default": 50 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Engine executed successfully and credit deducted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "libraryId": { "type": "string" },
+                    "accessMode": { "type": "string" },
+                    "remainingCalls": { "type": "integer" },
+                    "data": { "type": "object" }
+                  },
+                  "required": ["success", "libraryId", "data"]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — 0.10 USDC on Solana Mainnet via x402 v2"
+          }
+        }
+      }
+    },
+    "/api/paywall": {
+      "post": {
+        "operationId": "verifyUsdcPayment",
+        "summary": "Verify a confirmed Solana Mainnet USDC transaction and grant 10 API calls",
+        "tags": ["Billing", "x402"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "signature": { "type": "string", "minLength": 64, "description": "Confirmed Solana Mainnet transaction signature" },
+                  "wallet": { "type": "string", "minLength": 32, "description": "Base58 Solana wallet public key that signed the USDC transfer" },
+                  "libraryId": { "type": "string", "default": "default", "description": "Target engine ID or 'default' for universal credits" }
+                },
+                "required": ["signature", "wallet"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solana USDC payment verified and credits granted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "credits": { "type": "integer" },
+                    "amountUsdc": { "type": "number" }
+                  },
+                  "required": ["success", "credits"]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment verification failed or insufficient USDC received"
+          }
+        }
+      }
+    }
+  }
+}
