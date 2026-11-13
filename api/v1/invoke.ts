@@ -36,6 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Signature verification failed' });
   }
 
+  
+  if (!/^[a-zA-Z0-9_-]+$/.test(libraryId)) {
+    return res.status(400).json({ error: "Invalid libraryId format" });
+  }
+
   const access = await consumeCall(wallet, libraryId);
   if (!access.allowed) {
     const treasury = process.env.TREASURY_ADDRESS || '';

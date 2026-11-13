@@ -1,10 +1,5 @@
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-
 const CRON_SECRET = process.env.CRON_SECRET!;
 const VERCEL_URL = process.env.VERCEL_URL!;
-const RPC_URL = process.env.SOLANA_RPC_URL!;
-const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS!;
-const PAYOUT_WALLET_KEYPAIR = process.env.PAYOUT_WALLET_KEYPAIR;
 
 let isRunning = false;
 
