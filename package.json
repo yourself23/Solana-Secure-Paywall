@@ -20,6 +20,8 @@
     "@solana/wallet-adapter-wallets": "^0.19.40",
     "@solana/web3.js": "^3.1.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@upstash/ratelimit": "^2.2.1",
+    "@upstash/redis": "^1.41.0",
     "@vercel/node": "^30.0.0",
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
