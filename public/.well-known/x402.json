@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "protocol": "x402",
+  "name": "Solana Secure Trading & MEV Gateway",
+  "description": "High-speed Solana execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
+  "network": "solana-mainnet",
+  "asset": {
+    "symbol": "USDC",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "decimals": 6
+  },
+  "payment": {
+    "recipient": "2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym",
+    "amountBaseUnits": "10000000",
+    "amountUsdc": 10,
+    "creditsPerPayment": 60,
+    "freeTrialCalls": 2,
+    "paywallEndpoint": "https://vercel.app"
+  },
+  "invokeEndpoint": "https://vercel.app",
+  "authScheme": "solana-ed25519-header",
+  "libraries": [
+    "solana-sniper-daemon",
+    "mev-arbitrage-bot",
+    "jito-bundle-dispatcher",
+    "liquidity-pool-sniffer",
+    "raydium-swap-automator",
+    "pump-fun-bonding-curve",
+    "whale-wallet-tracker",
+    "flash-loan-arbitrage",
+    "multi-wallet-jito-injector",
+    "limit-order-sniper",
+    "cross-dex-router",
+    "mempool-alpha-scanner"
+  ]
+}
