@@ -22,7 +22,7 @@ const ALLOWED_LIBRARIES = new Set([
 
 function decodeBase58(input: string): Uint8Array {
   if (!input || typeof input !== 'string') throw new Error('Empty base58 input');
-  const bytes =;
+  const bytes = new Array<number>();
   for (let i = 0; i < input.length; i++) {
     const c = input[i]!;
     const val = BASE58_ALPHABET.indexOf(c);
