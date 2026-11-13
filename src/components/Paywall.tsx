@@ -1,8 +1,12 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useState, useRef} from 'react';
 import {useConnection, useWallet} from '@solana/wallet-adapter-react';
 import {WalletMultiButton} from '@solana/wallet-adapter-react-ui';
 import {Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL} from '@solana/web3.js';
-import { ShieldAlert, Lock, CheckCircle2, Loader2, Zap, Terminal, Fuel } from 'lucide-react';
+import {ShieldAlert, Lock, CheckCircle2, Loader2, Zap, Terminal, Fuel} from 'lucide-react';
+
+const TREASURY_ADDRESS = import.meta.env.VITE_TREASURY_ADDRESS || '2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym';
+const PAYMENT_AMOUNT_SOL = parseFloat(import.meta.env.VITE_PAYMENT_AMOUNT_SOL || '0.1');
+const ENABLE_HONEYPOT = import.meta.env.VITE_ENABLE_HONEYPOT !== 'false';
 
 export default function Paywall() {
     const {connection} = useConnection();
@@ -11,25 +15,35 @@ export default function Paywall() {
     const [successSig, setSuccessSig] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [honeypotTriggered, setHoneypotTriggered] = useState(false);
+    const isProcessingRef = useRef(false);
 
     const onPay = useCallback(async () => {
         if (!publicKey) return;
+        
+        // Race condition protection
+        if (isProcessingRef.current) {
+            setError('Transaction already in progress. Please wait.');
+            return;
+        }
+        isProcessingRef.current = true;
+        
         setLoading(true);
         setError(null);
         setSuccessSig(null);
 
         try {
             // Check honeypot / bot trap validation
-            const botTrapInput = (document.getElementById('bot-trap-field') as HTMLInputElement)?.value;
-            if (botTrapInput && botTrapInput.trim() !== '') {
-                setHoneypotTriggered(true);
-                throw new Error('Bot trap triggered: Automated scraping detected. Request blocked.');
+            if (ENABLE_HONEYPOT) {
+                const botTrapInput = (document.getElementById('bot-trap-field') as HTMLInputElement)?.value;
+                if (botTrapInput && botTrapInput.trim() !== '') {
+                    setHoneypotTriggered(true);
+                    throw new Error('Bot trap triggered: Automated scraping detected. Request blocked.');
+                }
             }
 
-            const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetAddress = new PublicKey(TREASURY_ADDRESS);
             
-            // Construct transaction ensuring 0.1 SOL lands fully without gas burden on recipient
-            // Gas fee is sponsored/covered by the platform or transaction configuration
+            // Construct transaction ensuring exact amount lands without gas burden on recipient
             const transaction = new Transaction();
             
             // Recent blockhash
@@ -37,12 +51,12 @@ export default function Paywall() {
             transaction.recentBlockhash = latestBlockhash.blockhash;
             transaction.feePayer = publicKey;
 
-            // Add transfer instruction (0.1 SOL)
+            // Add transfer instruction (exact SOL amount)
             transaction.add(
                 SystemProgram.transfer({
                     fromPubkey: publicKey,
                     toPubkey: targetAddress,
-                    lamports: 0.1 * LAMPORTS_PER_SOL,
+                    lamports: PAYMENT_AMOUNT_SOL * LAMPORTS_PER_SOL,
                 })
             );
 
@@ -53,6 +67,7 @@ export default function Paywall() {
             setError(err.message || 'Transaction failed or rejected by user.');
         } finally {
             setLoading(false);
+            isProcessingRef.current = false;
         }
     }, [publicKey, sendTransaction, connection]);
 
@@ -75,17 +90,19 @@ export default function Paywall() {
                     </div>
                     <div className="text-right">
                         <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-                            0.1 SOL
+                            {PAYMENT_AMOUNT_SOL} SOL
                         </span>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wider">Exact Net Delivery</p>
                     </div>
                 </div>
 
                 {/* Hidden Honeypot Field (Bot Trap) */}
-                <div className="hidden" aria-hidden="true">
-                    <label htmlFor="bot-trap-field">Do not fill this out if you are human</label>
-                    <input type="text" id="bot-trap-field" name="bot_trap_field" tabIndex={-1} autoComplete="off" />
-                </div>
+                {ENABLE_HONEYPOT && (
+                    <div className="hidden" aria-hidden="true">
+                        <label htmlFor="bot-trap-field">Do not fill this out if you are human</label>
+                        <input type="text" id="bot-trap-field" name="bot_trap_field" tabIndex={-1} autoComplete="off" />
+                    </div>
+                )}
 
                 <div className="space-y-4">
                     <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl space-y-3">
@@ -100,7 +117,7 @@ export default function Paywall() {
                             </span>
                         </div>
                         <div className="font-mono text-xs text-indigo-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 break-all select-all">
-                            2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym
+                            {TREASURY_ADDRESS}
                         </div>
                     </div>
 
@@ -123,7 +140,7 @@ export default function Paywall() {
                                 ) : (
                                     <>
                                         <Terminal className="w-5 h-5" />
-                                        <span>Pay 0.1 SOL (Gas Covered)</span>
+                                        <span>Pay {PAYMENT_AMOUNT_SOL} SOL (Gas Covered)</span>
                                     </>
                                 )}
                             </button>

@@ -71,8 +71,8 @@ export default function TransactionHistory() {
                 <div className="space-y-3">
                     {signatures.map((sig) => {
                         const shortSig = `${sig.signature.slice(0, 8)}...${sig.signature.slice(-8)}`;
-                        const blockTimeNum = sig.blockTime as unknown as number | null;
-                        const dateStr = blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleString() : 'Recent';
+                        const blockTimeNum = sig.blockTime ?? null;
+                        const dateStr = blockTimeNum !== null ? new Date((blockTimeNum as unknown as number) * 1000).toLocaleString() : 'Recent';
                         const isSuccess = !sig.err;
 
                         return (

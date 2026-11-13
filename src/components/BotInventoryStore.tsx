@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { ShieldAlert, Loader2, Zap, Terminal, Database, Activity, ExternalLink, Code } from 'lucide-react';
+
+const TREASURY_ADDRESS = import.meta.env.VITE_TREASURY_ADDRESS || '2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym';
+const PAYMENT_AMOUNT_SOL = parseFloat(import.meta.env.VITE_PAYMENT_AMOUNT_SOL || '0.1');
+const CALLS_PER_PAYMENT = parseInt(import.meta.env.VITE_API_CALLS_PER_PAYMENT || '60', 10);
+const ENABLE_HONEYPOT = import.meta.env.VITE_ENABLE_HONEYPOT !== 'false';
 
 interface InventoryItem {
     id: string;
@@ -26,18 +31,18 @@ interface SaleRecord {
 }
 
 const BOT_INVENTORY_ITEMS: InventoryItem[] = [
-    { id: 'item-1', name: 'Solana Sniper Daemon v4', category: 'Sniping', description: 'Ultra-low latency block-level token launch sniper for Raydium & Pump.fun.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/sniper' },
-    { id: 'item-2', name: 'MEV Arbitrage Bot Engine', category: 'Arbitrage', description: 'Cross-pool atomic arbitrage calculation and execution engine.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/arbitrage' },
-    { id: 'item-3', name: 'Jito Bundle Dispatcher API', category: 'MEV', description: 'Direct validator tip injection and bundle submission for guaranteed block inclusion.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/jito' },
-    { id: 'item-4', name: 'Liquidity Pool Sniffer', category: 'Scanners', description: 'Real-time mempool listener detecting LP creation and mint initializations.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/pool-sniffer' },
-    { id: 'item-5', name: 'Raydium Swap Automator', category: 'Execution', description: 'High-speed programmatic AMM swap routing with slippage protection.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/raydium-swap' },
-    { id: 'item-6', name: 'Pump.fun Bonding Curve Bot', category: 'Sniping', description: 'Automated bonding curve progression analyzer and early buyer.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/pump-fun' },
-    { id: 'item-7', name: 'Whale Wallet Tracker Streamer', category: 'Analytics', description: 'Live websocket feed and webhook alerts for smart money wallet movements.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/whale-tracker' },
-    { id: 'item-8', name: 'Flash Loan Arbitrage Router', category: 'DeFi', description: 'Zero-capital flash loan multi-hop route optimizer and executor.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/flash-loan' },
-    { id: 'item-9', name: 'Multi-Wallet Jito Injector', category: 'MEV', description: 'Sybil-resistant parallel transaction bundle dispatch across 32 wallets.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/multi-wallet' },
-    { id: 'item-10', name: 'Mempool Transaction Streamer', category: 'Infrastructure', description: 'Raw pending transaction stream for custom alpha signal extraction.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/mempool' },
-    { id: 'item-11', name: 'Token Metadata Sniper', category: 'Scanners', description: 'Instant detection of token name, symbol, and social links upon creation.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/metadata' },
-    { id: 'item-12', name: 'Anti-Rugpull Security Audit API', category: 'Security', description: 'Automated smart contract security scanner checking mint authority & freeze flags.', callsIncluded: 60, priceSol: 0.1, endpoint: '/api/v1/audit' },
+    { id: 'item-1', name: 'Solana Sniper Daemon v4', category: 'Sniping', description: 'Ultra-low latency block-level token launch sniper for Raydium & Pump.fun.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/sniper' },
+    { id: 'item-2', name: 'MEV Arbitrage Bot Engine', category: 'Arbitrage', description: 'Cross-pool atomic arbitrage calculation and execution engine.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/arbitrage' },
+    { id: 'item-3', name: 'Jito Bundle Dispatcher API', category: 'MEV', description: 'Direct validator tip injection and bundle submission for guaranteed block inclusion.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/jito' },
+    { id: 'item-4', name: 'Liquidity Pool Sniffer', category: 'Scanners', description: 'Real-time mempool listener detecting LP creation and mint initializations.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/pool-sniffer' },
+    { id: 'item-5', name: 'Raydium Swap Automator', category: 'Execution', description: 'High-speed programmatic AMM swap routing with slippage protection.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/raydium-swap' },
+    { id: 'item-6', name: 'Pump.fun Bonding Curve Bot', category: 'Sniping', description: 'Automated bonding curve progression analyzer and early buyer.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/pump-fun' },
+    { id: 'item-7', name: 'Whale Wallet Tracker Streamer', category: 'Analytics', description: 'Live websocket feed and webhook alerts for smart money wallet movements.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/whale-tracker' },
+    { id: 'item-8', name: 'Flash Loan Arbitrage Router', category: 'DeFi', description: 'Zero-capital flash loan multi-hop route optimizer and executor.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/flash-loan' },
+    { id: 'item-9', name: 'Multi-Wallet Jito Injector', category: 'MEV', description: 'Sybil-resistant parallel transaction bundle dispatch across 32 wallets.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/multi-wallet' },
+    { id: 'item-10', name: 'Mempool Transaction Streamer', category: 'Infrastructure', description: 'Raw pending transaction stream for custom alpha signal extraction.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/mempool' },
+    { id: 'item-11', name: 'Token Metadata Sniper', category: 'Scanners', description: 'Instant detection of token name, symbol, and social links upon creation.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/metadata' },
+    { id: 'item-12', name: 'Anti-Rugpull Security Audit API', category: 'Security', description: 'Automated smart contract security scanner checking mint authority & freeze flags.', callsIncluded: CALLS_PER_PAYMENT, priceSol: PAYMENT_AMOUNT_SOL, endpoint: '/api/v1/audit' },
 ];
 
 export default function BotInventoryStore() {
@@ -52,8 +57,8 @@ export default function BotInventoryStore() {
             wallet: '7xKX...3v9N',
             signature: '5Kt8...9p2q',
             timestamp: new Date(Date.now() - 120000).toLocaleTimeString(),
-            amount: 0.1,
-            callsGranted: 60,
+            amount: PAYMENT_AMOUNT_SOL,
+            callsGranted: CALLS_PER_PAYMENT,
             status: 'Confirmed'
         },
         {
@@ -62,13 +67,14 @@ export default function BotInventoryStore() {
             wallet: '9mQ2...1w8R',
             signature: '3hN7...4k1m',
             timestamp: new Date(Date.now() - 300000).toLocaleTimeString(),
-            amount: 0.1,
-            callsGranted: 60,
+            amount: PAYMENT_AMOUNT_SOL,
+            callsGranted: CALLS_PER_PAYMENT,
             status: 'Confirmed'
         }
     ]);
     const [apiCredits, setApiCredits] = useState<Record<string, number>>({});
     const [http402Triggered, setHttp402Triggered] = useState(false);
+    const isProcessingRef = useRef(false);
 
     const handlePurchase = async (item: InventoryItem) => {
         if (!publicKey) {
@@ -76,26 +82,35 @@ export default function BotInventoryStore() {
             return;
         }
 
+        // Race condition protection
+        if (isProcessingRef.current) {
+            setError('Purchase already in progress. Please wait.');
+            return;
+        }
+        isProcessingRef.current = true;
+
         setLoadingId(item.id);
         setError(null);
         setHttp402Triggered(false);
 
         try {
             // Check bot trap / honeypot
-            const botTrapInput = (document.getElementById('bot-trap-honeypot') as HTMLInputElement)?.value;
-            if (botTrapInput && botTrapInput.trim() !== '') {
-                setHttp402Triggered(true);
-                throw new Error('HTTP 402 Payment Required: Bot trap triggered. Automated scraper blocked.');
+            if (ENABLE_HONEYPOT) {
+                const botTrapInput = (document.getElementById('bot-trap-honeypot') as HTMLInputElement)?.value;
+                if (botTrapInput && botTrapInput.trim() !== '') {
+                    setHttp402Triggered(true);
+                    throw new Error('HTTP 402 Payment Required: Bot trap triggered. Automated scraper blocked.');
+                }
             }
 
-            const targetAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetAddress = new PublicKey(TREASURY_ADDRESS);
             
             const transaction = new Transaction();
             const latestBlockhash = await connection.getLatestBlockhash();
             transaction.recentBlockhash = latestBlockhash.blockhash;
             transaction.feePayer = publicKey;
 
-            // Transfer 0.1 SOL (Gas covered/sponsored delivery)
+            // Transfer exact SOL amount (Gas covered/sponsored delivery)
             transaction.add(
                 SystemProgram.transfer({
                     fromPubkey: publicKey,
@@ -106,7 +121,7 @@ export default function BotInventoryStore() {
 
             const signature = await sendTransaction(transaction, connection);
 
-            // Grant 60 calls upon successful payment
+            // Grant calls upon successful payment
             setApiCredits(prev => ({
                 ...prev,
                 [item.id]: (prev[item.id] || 0) + item.callsIncluded
@@ -130,6 +145,7 @@ export default function BotInventoryStore() {
             setError(err.message || 'Transaction failed or rejected.');
         } finally {
             setLoadingId(null);
+            isProcessingRef.current = false;
         }
     };
 
@@ -142,11 +158,11 @@ export default function BotInventoryStore() {
                     <div className="space-y-2">
                         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-800/60 text-indigo-300 text-xs font-mono">
                             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                            <span>HTTP 402 Botwall Active • 60 Calls / 0.1 SOL Payment</span>
+                            <span>HTTP 402 Botwall Active • {CALLS_PER_PAYMENT} Calls / {PAYMENT_AMOUNT_SOL} SOL Payment</span>
                         </div>
                         <h2 className="text-2xl font-black text-white tracking-tight">Bot API Library Catalog</h2>
                         <p className="text-sm text-slate-400 max-w-2xl">
-                            Essential operational software libraries for bots on Solana. Each API library purchase unlocks 60 high-performance calls for 0.1 SOL. Revenue routes directly to the Solana deposit address with zero gas deduction.
+                            Essential operational software libraries for bots on Solana. Each API library purchase unlocks {CALLS_PER_PAYMENT} high-performance calls for {PAYMENT_AMOUNT_SOL} SOL. Revenue routes directly to the Solana deposit address with zero gas deduction.
                         </p>
                     </div>
                     <div className="flex-shrink-0">
@@ -156,10 +172,12 @@ export default function BotInventoryStore() {
             </div>
 
             {/* Hidden Bot Trap Honeypot */}
-            <div className="hidden" aria-hidden="true">
-                <label htmlFor="bot-trap-honeypot">Bot Trap Field</label>
-                <input type="text" id="bot-trap-honeypot" name="bot_trap_honeypot" tabIndex={-1} autoComplete="off" />
-            </div>
+            {ENABLE_HONEYPOT && (
+                <div className="hidden" aria-hidden="true">
+                    <label htmlFor="bot-trap-honeypot">Bot Trap Field</label>
+                    <input type="text" id="bot-trap-honeypot" name="bot_trap_honeypot" tabIndex={-1} autoComplete="off" />
+                </div>
+            )}
 
             {error && (
                 <div className="p-4 bg-red-950/40 border border-red-800/80 rounded-xl text-red-300 text-sm flex items-start space-x-3">
@@ -178,7 +196,7 @@ export default function BotInventoryStore() {
                         <Database className="w-5 h-5 text-indigo-400" />
                         <span>Available Bot API Libraries for Sale ({BOT_INVENTORY_ITEMS.length})</span>
                     </div>
-                    <span className="text-xs font-mono text-slate-400">Pricing: 0.1 SOL = 60 Calls</span>
+                    <span className="text-xs font-mono text-slate-400">Pricing: {PAYMENT_AMOUNT_SOL} SOL = {CALLS_PER_PAYMENT} Calls</span>
                 </div>
 
                 <div className="space-y-3">
@@ -207,8 +225,8 @@ export default function BotInventoryStore() {
 
                                 <div className="flex items-center space-x-4 w-full md:w-auto justify-between md:justify-end pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
                                     <div className="text-right">
-                                        <div className="text-base font-black text-emerald-400 font-mono">0.1 SOL</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">60 API Calls</div>
+                                        <div className="text-base font-black text-emerald-400 font-mono">{item.priceSol} SOL</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">{item.callsIncluded} API Calls</div>
                                     </div>
 
                                     {credits > 0 ? (

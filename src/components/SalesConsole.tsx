@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, ConfirmedSignatureInfo } from '@solana/web3.js';
 import { Activity, RefreshCcw, ExternalLink, Cpu, Users, DollarSign, BarChart3, Zap } from 'lucide-react';
+
+const TREASURY_ADDRESS = import.meta.env.VITE_TREASURY_ADDRESS || '2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym';
+const PAYMENT_AMOUNT_SOL = parseFloat(import.meta.env.VITE_PAYMENT_AMOUNT_SOL || '0.1');
+const CALLS_PER_PAYMENT = parseInt(import.meta.env.VITE_API_CALLS_PER_PAYMENT || '60', 10);
 
 interface TelemetrySale {
     signature: string;
@@ -26,51 +30,53 @@ const MOCK_LIBRARY_NAMES = [
 ];
 
 const FALLBACK_SALES: TelemetrySale[] = [
-    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', libraryName: 'Solana Sniper Daemon v4', amount: 0.1, callsGranted: 60, slot: 294821044, status: 'Success' },
-    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', libraryName: 'Jito Bundle Dispatcher API', amount: 0.1, callsGranted: 60, slot: 294821012, status: 'Success' },
-    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', libraryName: 'MEV Arbitrage Bot Engine', amount: 0.1, callsGranted: 60, slot: 294820980, status: 'Success' },
-    { signature: '1mQ4...7h5K', timestamp: '9m ago', sender: '2bN6...5p1X', libraryName: 'Liquidity Pool Sniffer', amount: 0.1, callsGranted: 60, slot: 294820915, status: 'Success' },
-    { signature: '9xL3...1w4P', timestamp: '14m ago', sender: '8hJ1...3m7Q', libraryName: 'Raydium Swap Automator', amount: 0.1, callsGranted: 60, slot: 294820850, status: 'Success' },
+    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', libraryName: 'Solana Sniper Daemon v4', amount: PAYMENT_AMOUNT_SOL, callsGranted: CALLS_PER_PAYMENT, slot: 294821044, status: 'Success' },
+    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', libraryName: 'Jito Bundle Dispatcher API', amount: PAYMENT_AMOUNT_SOL, callsGranted: CALLS_PER_PAYMENT, slot: 294821012, status: 'Success' },
+    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', libraryName: 'MEV Arbitrage Bot Engine', amount: PAYMENT_AMOUNT_SOL, callsGranted: CALLS_PER_PAYMENT, slot: 294820980, status: 'Success' },
+    { signature: '1mQ4...7h5K', timestamp: '9m ago', sender: '2bN6...5p1X', libraryName: 'Liquidity Pool Sniffer', amount: PAYMENT_AMOUNT_SOL, callsGranted: CALLS_PER_PAYMENT, slot: 294820915, status: 'Success' },
+    { signature: '9xL3...1w4P', timestamp: '14m ago', sender: '8hJ1...3m7Q', libraryName: 'Raydium Swap Automator', amount: PAYMENT_AMOUNT_SOL, callsGranted: CALLS_PER_PAYMENT, slot: 294820850, status: 'Success' },
 ];
 
 export default function SalesConsole() {
     const { connection } = useConnection();
     const [sales, setSales] = useState<TelemetrySale[]>(FALLBACK_SALES);
     const [loading, setLoading] = useState(false);
-    const [totalRevenue, setTotalRevenue] = useState(3.6);
-    const [totalCallsSold, setTotalCallsSold] = useState(2160);
+    const [totalRevenue, setTotalRevenue] = useState(PAYMENT_AMOUNT_SOL * FALLBACK_SALES.length);
+    const [totalCallsSold, setTotalCallsSold] = useState(CALLS_PER_PAYMENT * FALLBACK_SALES.length);
     const [activeBots, setActiveBots] = useState(38);
     const [lastPolled, setLastPolled] = useState<string>(new Date().toLocaleTimeString());
 
     const fetchTelemetry = async () => {
         setLoading(true);
         try {
-            const targetPubkey = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetPubkey = new PublicKey(TREASURY_ADDRESS);
             const signatures = await connection.getSignaturesForAddress(targetPubkey, { limit: 15 });
 
             if (signatures && signatures.length > 0) {
-                const telemetryRecords: TelemetrySale[] = signatures.map((sig, idx) => {
-                    const blockTimeNum = sig.blockTime as unknown as number | null;
-                    const randomLib = MOCK_LIBRARY_NAMES[idx % MOCK_LIBRARY_NAMES.length];
+                const telemetryRecords: TelemetrySale[] = signatures.map((sig: ConfirmedSignatureInfo, idx: number) => {
+                    const blockTimeNum = sig.blockTime ?? null;
+                    const timestamp = blockTimeNum !== null ? new Date((blockTimeNum as unknown as number) * 1000).toLocaleTimeString() : 'Just now';
+                    const randomLib = MOCK_LIBRARY_NAMES[idx % MOCK_LIBRARY_NAMES.length] ?? 'Unknown Library';
                     const mockSender = `${sig.signature.slice(0, 4)}...${sig.signature.slice(-4)}`;
                     return {
                         signature: sig.signature,
-                        timestamp: blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleTimeString() : 'Just now',
+                        timestamp,
                         sender: mockSender,
                         libraryName: randomLib,
-                        amount: 0.1,
-                        callsGranted: 60,
+                        amount: PAYMENT_AMOUNT_SOL,
+                        callsGranted: CALLS_PER_PAYMENT,
                         slot: Number(sig.slot),
                         status: sig.err ? 'Pending' : 'Success'
                     };
                 });
                 setSales(telemetryRecords);
-                setTotalRevenue(telemetryRecords.length * 0.1);
-                setTotalCallsSold(telemetryRecords.length * 60);
+                setTotalRevenue(telemetryRecords.length * PAYMENT_AMOUNT_SOL);
+                setTotalCallsSold(telemetryRecords.length * CALLS_PER_PAYMENT);
             }
             setLastPolled(new Date().toLocaleTimeString());
-        } catch (err: any) {
-            console.warn('RPC telemetry polling handled gracefully:', err?.message || err);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.warn('RPC telemetry polling handled gracefully:', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -126,7 +132,7 @@ export default function SalesConsole() {
                     </div>
                     <div className="text-2xl font-black text-white font-mono">{totalRevenue.toFixed(1)} SOL</div>
                     <p className="text-[10px] text-emerald-400 flex items-center space-x-1">
-                        <span>Direct to 2AoLHz...M2yhym</span>
+                        <span>Direct to {TREASURY_ADDRESS.slice(0, 6)}...{TREASURY_ADDRESS.slice(-6)}</span>
                     </p>
                 </div>
 
@@ -136,7 +142,7 @@ export default function SalesConsole() {
                         <Cpu className="w-4 h-4 text-indigo-400" />
                     </div>
                     <div className="text-2xl font-black text-white font-mono">{totalCallsSold} Calls</div>
-                    <p className="text-[10px] text-slate-400">60 calls per library payment</p>
+                    <p className="text-[10px] text-slate-400">{CALLS_PER_PAYMENT} calls per library payment</p>
                 </div>
 
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">

@@ -3,6 +3,9 @@ import { useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey, ConfirmedSignatureInfo } from '@solana/web3.js';
 import { History, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 
+const TREASURY_ADDRESS = import.meta.env.VITE_TREASURY_ADDRESS || '2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym';
+const PAYMENT_AMOUNT_SOL = parseFloat(import.meta.env.VITE_PAYMENT_AMOUNT_SOL || '0.1');
+
 interface SalesRecord {
     signature: string;
     timestamp: string;
@@ -13,9 +16,9 @@ interface SalesRecord {
 }
 
 const FALLBACK_RECORDS: SalesRecord[] = [
-    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', amount: '0.1 SOL', slot: 294821044, status: 'Success' },
-    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', amount: '0.1 SOL', slot: 294821012, status: 'Success' },
-    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', amount: '0.1 SOL', slot: 294820980, status: 'Success' },
+    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', amount: `${PAYMENT_AMOUNT_SOL} SOL`, slot: 294821044, status: 'Success' },
+    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', amount: `${PAYMENT_AMOUNT_SOL} SOL`, slot: 294821012, status: 'Success' },
+    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', amount: `${PAYMENT_AMOUNT_SOL} SOL`, slot: 294820980, status: 'Success' },
 ];
 
 export default function SalesLog() {
@@ -28,25 +31,27 @@ export default function SalesLog() {
         setLoading(true);
         setError(null);
         try {
-            const targetPubkey = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+            const targetPubkey = new PublicKey(TREASURY_ADDRESS);
             const signatures: ConfirmedSignatureInfo[] = await connection.getSignaturesForAddress(targetPubkey, { limit: 15 });
 
             if (signatures && signatures.length > 0) {
-                const records: SalesRecord[] = signatures.map(sig => {
-                    const blockTimeNum = sig.blockTime as unknown as number | null;
+                const records: SalesRecord[] = signatures.map((sig: ConfirmedSignatureInfo) => {
+                    const blockTimeNum = sig.blockTime ?? null;
+                    const timestamp = blockTimeNum !== null ? new Date((blockTimeNum as unknown as number) * 1000).toLocaleString() : 'Recent';
                     return {
                         signature: sig.signature,
-                        timestamp: blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleString() : 'Recent',
+                        timestamp,
                         sender: 'Confirmed Bot / Buyer',
-                        amount: '0.1 SOL',
+                        amount: `${PAYMENT_AMOUNT_SOL} SOL`,
                         slot: Number(sig.slot),
                         status: sig.err ? 'Failed' : 'Success'
                     };
                 });
                 setSales(records);
             }
-        } catch (err: any) {
-            console.warn('SalesLog RPC fetch handled gracefully (using live simulation):', err?.message || err);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.warn('SalesLog RPC fetch handled gracefully (using live simulation):', errorMessage);
             // Gracefully keep fallback telemetry records active on 403 / network restriction
         } finally {
             setLoading(false);

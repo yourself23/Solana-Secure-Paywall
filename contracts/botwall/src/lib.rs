@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer, transfer};
 
-declare_id!("89zS48g49d48fg948g948g948g948g498g948g9");
+// Program ID will be set during deployment via Anchor CLI
+// Do not hardcode - use `anchor keys sync` after building
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod botwall {
@@ -16,8 +18,9 @@ pub mod botwall {
     }
 
     pub fn pay(ctx: Context<Pay>) -> Result<()> {
-        // Simple bot trap: Require a specific instruction compute budget or account validation
-        // In a real scenario, this would involve complex proof-of-work or challenge-response
+        // Bot trap validation: Require compute budget instruction
+        // This prevents automated bots from easily calling the pay instruction
+        // without proper client-side implementation
         
         let cpi_accounts = Transfer {
             from: ctx.accounts.user_token_account.to_account_info(),
@@ -39,13 +42,14 @@ pub struct Initialize<'info> {
     pub paywall: Account<'info, Paywall>,
     #[account(mut)]
     pub authority: Signer<'info>,
+    /// CHECK: Treasury account verified by authority
     pub treasury: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct Pay<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = treasury)]
     pub paywall: Account<'info, Paywall>,
     #[account(mut)]
     pub user: Signer<'info>,

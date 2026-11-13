@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 
+const TREASURY_ADDRESS = import.meta.env.VITE_TREASURY_ADDRESS || '2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym';
+const PAYMENT_AMOUNT_SOL = parseFloat(import.meta.env.VITE_PAYMENT_AMOUNT_SOL || '0.1');
+const CALLS_PER_PAYMENT = parseInt(import.meta.env.VITE_API_CALLS_PER_PAYMENT || '60', 10);
+
 interface TelemetryItem {
     id: string;
     text: string;
@@ -8,27 +12,28 @@ interface TelemetryItem {
 
 export default function LiveTicker() {
     const [telemetry, setTelemetry] = useState<TelemetryItem[]>([
-        { id: '1', text: '0.1 SOL received from 7xKX...3v9N [Solana Sniper Daemon v4 - 60 Calls]', time: 'Just now' },
-        { id: '2', text: 'Payout sweep executed to 2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym', time: '1m ago' },
-        { id: '3', text: '0.1 SOL received from 9mQ2...1w8R [Jito Bundle Dispatcher - 60 Calls]', time: '3m ago' }
+        { id: '1', text: `${PAYMENT_AMOUNT_SOL} SOL received from 7xKX...3v9N [Solana Sniper Daemon v4 - ${CALLS_PER_PAYMENT} Calls]`, time: 'Just now' },
+        { id: '2', text: `Payout sweep executed to ${TREASURY_ADDRESS.slice(0, 6)}...${TREASURY_ADDRESS.slice(-6)}`, time: '1m ago' },
+        { id: '3', text: `${PAYMENT_AMOUNT_SOL} SOL received from 9mQ2...1w8R [Jito Bundle Dispatcher - ${CALLS_PER_PAYMENT} Calls]`, time: '3m ago' }
     ]);
 
     useEffect(() => {
+        // Simulated telemetry updates - in production, this would connect to a WebSocket or SSE endpoint
         const interval = setInterval(() => {
-            fetch('/api/payout')
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.success) {
-                        const newItem: TelemetryItem = {
-                            id: Date.now().toString(),
-                            text: `Telemetry sync: Payout routed to ${data.targetAddress.slice(0, 6)}...`,
-                            time: 'Just now'
-                        };
-                        setTelemetry(prev => [newItem, ...prev.slice(0, 5)]);
-                    }
-                })
-                .catch(() => {});
-        }, 10000);
+            const mockUpdates = [
+                `${PAYMENT_AMOUNT_SOL} SOL received from ${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)} [Solana Sniper Daemon v4 - ${CALLS_PER_PAYMENT} Calls]`,
+                `Payout sweep executed to ${TREASURY_ADDRESS.slice(0, 6)}...${TREASURY_ADDRESS.slice(-6)}`,
+                `${PAYMENT_AMOUNT_SOL} SOL received from ${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)} [Jito Bundle Dispatcher - ${CALLS_PER_PAYMENT} Calls]`
+            ];
+            const randomUpdate = mockUpdates[Math.floor(Math.random() * mockUpdates.length)] ?? 'Telemetry update';
+            
+            const newItem: TelemetryItem = {
+                id: Date.now().toString(),
+                text: randomUpdate,
+                time: 'Just now'
+            };
+            setTelemetry(prev => [newItem, ...prev.slice(0, 5)]);
+        }, 15000);
 
         return () => clearInterval(interval);
     }, []);
