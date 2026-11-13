@@ -1,0 +1,9 @@
+# Solana Secure Paywall
+> Autonomous Solana trading, MEV, and Jito execution API gateway accepting Solana SPL USDC via x402 HTTP 402 headers.
+
+- Discovery JSON: https://solana-secure-paywall.vercel.app/.well-known/x402.json
+- Skill Markdown: https://solana-secure-paywall.vercel.app/SKILL.md
+- Invoke Endpoint: https://solana-secure-paywall.vercel.app/api/v1/invoke
+- Payment Verification Endpoint: https://solana-secure-paywall.vercel.app/api/paywall
+- Payment Asset: USDC on solana-mainnet (Mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
+- Price: 10 USDC (10000000 base units) for 60 calls (2 free trial calls included)
