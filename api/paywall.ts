@@ -1,28 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const SOLANA_USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
   if (!receiver) {
     return res.status(500).json({ error: 'Server configuration incomplete: TREASURY_ADDRESS missing' });
   }
 
-  const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || '0.1');
-  const requiredLamports = Math.round(amountSol * 1_000_000_000);
+  const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
+  const requiredBaseUnits = Math.round(amountUsdc * 1_000_000);
   const callsPerPayment = Number(process.env.API_CALLS_PER_PAYMENT || '60');
 
   if (req.method !== 'POST') {
     res.setHeader('X-Payment-Required', 'true');
-    res.setHeader('X-Payment-Amount', requiredLamports.toString());
+    res.setHeader('X-Payment-Amount', requiredBaseUnits.toString());
     res.setHeader('X-Payment-Recipient', receiver);
     res.setHeader('X-Payment-Network', 'solana-mainnet');
-    res.setHeader('X-Payment-Asset', 'SOL');
+    res.setHeader('X-Payment-Asset', 'USDC');
+    res.setHeader('X-Payment-Mint', SOLANA_USDC_MINT);
     return res.status(402).json({
       error: 'Payment Required',
       network: 'solana-mainnet',
-      asset: 'SOL',
+      asset: 'USDC',
+      mint: SOLANA_USDC_MINT,
       depositAddress: receiver,
-      amountLamports: requiredLamports,
-      amountSol,
+      amountBaseUnits: requiredBaseUnits,
+      amountUsdc,
     });
   }
 
@@ -46,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   const forwarded = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(forwarded) ? forwarded[0] : (forwarded?.split(',')[0]?.trim() || 'anonymous');
+  const ip = Array.isArray(forwarded) ? forwarded : (forwarded?.split(',')?.trim() || 'anonymous');
   const rateKey = `rl:paywall:${ip}:${Math.floor(Date.now() / 60000)}`;
   const rlRes = await upstash(['INCR', rateKey]);
   if (rlRes.result === 1) await upstash(['EXPIRE', rateKey, 60]);
@@ -63,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Invalid signature, wallet, or libraryId' });
   }
 
-  const sigKey = `spent_sol_sig:${signature}`;
+  const sigKey = `spent_usdc_sig:${signature}`;
   const claimRes = await upstash(['SET', sigKey, wallet, 'EX', 86400 * 30, 'NX']);
   if (claimRes.result !== 'OK') {
     return res.status(402).json({ error: 'Transaction signature already redeemed' });
@@ -102,17 +106,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(402).json({ error: 'Transaction signer does not match requesting wallet' });
     }
 
-    const receiverIdx = accountKeys.findIndex((k: any) => k.pubkey === receiver);
-    if (receiverIdx === -1) {
+    const preTokens = tx.meta?.preTokenBalances || [];
+    const postTokens = tx.meta?.postTokenBalances || [];
+
+    const postEntry = postTokens.find(
+      (b: any) => b.mint === SOLANA_USDC_MINT && b.owner === receiver
+    );
+
+    if (!postEntry) {
       await upstash(['DEL', sigKey]);
-      return res.status(402).json({ error: 'Paywall recipient not found in transaction' });
+      return res.status(402).json({ error: 'No USDC token balance found for paywall recipient' });
     }
 
-    const receivedLamports = (tx.meta.postBalances?.[receiverIdx] ?? 0) - (tx.meta.preBalances?.[receiverIdx] ?? 0);
-    if (receivedLamports < requiredLamports) {
+    const preEntry = preTokens.find(
+      (b: any) => b.accountIndex === postEntry.accountIndex && b.mint === SOLANA_USDC_MINT
+    );
+
+    const postUnits = BigInt(postEntry.uiTokenAmount?.amount || '0');
+    const preUnits = BigInt(preEntry?.uiTokenAmount?.amount || '0');
+    const receivedUnits = postUnits - preUnits;
+
+    if (receivedUnits < BigInt(requiredBaseUnits)) {
       await upstash(['DEL', sigKey]);
       return res.status(402).json({
-        error: `Insufficient SOL transfer: received ${receivedLamports} lamports, expected ${requiredLamports}`,
+        error: `Insufficient USDC transfer: received ${receivedUnits.toString()} base units, expected ${requiredBaseUnits}`,
       });
     }
 
@@ -120,10 +137,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       success: true,
-      message: 'Paywall access granted',
+      message: 'Solana USDC payment verified and credits granted',
+      asset: 'USDC',
       depositAddress: receiver,
       credits: creditRes.result,
-      amount: amountSol,
+      amountUsdc,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {

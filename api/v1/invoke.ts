@@ -143,23 +143,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (accessMode === 'none') {
-    const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || '0.1');
-    const amountLamports = Math.round(amountSol * 1_000_000_000);
+    const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
+    const amountBaseUnits = Math.round(amountUsdc * 1_000_000);
 
     res.setHeader('X-Payment-Required', 'true');
-    res.setHeader('X-Payment-Amount', amountLamports.toString());
+    res.setHeader('X-Payment-Amount', amountBaseUnits.toString());
     res.setHeader('X-Payment-Recipient', receiver);
     res.setHeader('X-Payment-Network', 'solana-mainnet');
-    res.setHeader('X-Payment-Asset', 'SOL');
+    res.setHeader('X-Payment-Asset', 'USDC');
 
     return res.status(402).json({
       error: 'Payment Required',
       message: 'Free trial calls exhausted. Send SOL to depositAddress and POST the signature to /api/paywall.',
       network: 'solana-mainnet',
-      asset: 'SOL',
+      asset: 'USDC',
       depositAddress: receiver,
-      amountLamports,
-      amountSol,
+      amountBaseUnits,
+      amountUsdc,
       trialCallsRemaining: 0,
     });
   }
