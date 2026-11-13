@@ -1,164 +1,185 @@
-import React, {useCallback, useState} from 'react';
-import {useConnection, useWallet} from '@solana/wallet-adapter-react';
-import {WalletMultiButton} from '@solana/wallet-adapter-react-ui';
-import {Transaction, SystemProgram, PublicKey, LAMPORTS_PER_SOL} from '@solana/web3.js';
-import { ShieldAlert, Lock, CheckCircle2, Loader2, Zap, Terminal, Fuel } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction, PublicKey } from '@solana/web3.js';
+import {
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createTransferInstruction,
+} from '@solana/spl-token';
+import { ShieldAlert, Lock, CheckCircle2, Loader2, Zap, Fuel } from 'lucide-react';
+
+const SOLANA_USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
 export default function Paywall() {
-    const {connection} = useConnection();
-    const {publicKey, sendTransaction} = useWallet();
-    const [loading, setLoading] = useState(false);
-    const [successSig, setSuccessSig] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [honeypotTriggered, setHoneypotTriggered] = useState(false);
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [successSig, setSuccessSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-    const onPay = useCallback(async () => {
-        if (!publicKey) return;
-        setLoading(true);
-        setError(null);
-        setSuccessSig(null);
+  const treasuryAddress = (import.meta.env.VITE_TREASURY_ADDRESS as string)?.trim() || '';
+  const amountUsdc = parseFloat((import.meta.env.VITE_PAYMENT_AMOUNT_USDC as string) || '10');
+  const baseUnits = BigInt(Math.round(amountUsdc * 1_000_000));
 
-        try {
-            // Check honeypot / bot trap validation
-            const botTrapInput = (document.getElementById('bot-trap-field') as HTMLInputElement)?.value;
-            if (botTrapInput && botTrapInput.trim() !== '') {
-                setHoneypotTriggered(true);
-                throw new Error('Bot trap triggered: Automated scraping detected. Request blocked.');
-            }
+  const onPay = useCallback(async () => {
+    if (!publicKey || loading) return;
+    if (!treasuryAddress) {
+      setError('Paywall treasury address is not configured.');
+      return;
+    }
 
-            const targetAddress = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
-            
-            // Construct transaction ensuring 0.1 SOL lands fully without gas burden on recipient
-            // Gas fee is sponsored/covered by the platform or transaction configuration
-            const transaction = new Transaction();
-            
-            // Recent blockhash
-            const latestBlockhash = await connection.getLatestBlockhash();
-            transaction.recentBlockhash = latestBlockhash.blockhash;
-            transaction.feePayer = publicKey;
+    setLoading(true);
+    setError(null);
+    setSuccessSig(null);
 
-            // Add transfer instruction (0.1 SOL)
-            transaction.add(
-                SystemProgram.transfer({
-                    fromPubkey: publicKey,
-                    toPubkey: targetAddress,
-                    lamports: 0.1 * LAMPORTS_PER_SOL,
-                })
-            );
+    try {
+      const botTrapInput = (document.getElementById('bot-trap-field') as HTMLInputElement)?.value;
+      if (botTrapInput && botTrapInput.trim() !== '') {
+        throw new Error('Bot trap triggered: Automated scraping detected. Request blocked.');
+      }
 
-            const signature = await sendTransaction(transaction, connection);
-            setSuccessSig(signature);
-        } catch (err: any) {
-            console.error('Payment error:', err);
-            setError(err.message || 'Transaction failed or rejected by user.');
-        } finally {
-            setLoading(false);
-        }
-    }, [publicKey, sendTransaction, connection]);
+      const recipientOwner = new PublicKey(treasuryAddress);
+      const senderAta = getAssociatedTokenAddressSync(SOLANA_USDC_MINT, publicKey);
+      const recipientAta = getAssociatedTokenAddressSync(SOLANA_USDC_MINT, recipientOwner, true);
 
-    return (
-        <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
-            {/* Background Glow */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+      const transaction = new Transaction();
+      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      transaction.recentBlockhash = latestBlockhash.blockhash;
+      transaction.feePayer = publicKey;
 
-            <div className="relative z-10 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                            <Lock className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-white tracking-tight">Solana Botwall Paywall</h2>
-                            <p className="text-xs text-slate-400">Gas-Covered Zero-Fee Recipient Settlement</p>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-                            0.1 SOL
-                        </span>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Exact Net Delivery</p>
-                    </div>
-                </div>
+      transaction.add(
+        createAssociatedTokenAccountIdempotentInstruction(
+          publicKey,
+          recipientAta,
+          recipientOwner,
+          SOLANA_USDC_MINT
+        ),
+        createTransferInstruction(
+          senderAta,
+          recipientAta,
+          publicKey,
+          baseUnits
+        )
+      );
 
-                {/* Hidden Honeypot Field (Bot Trap) */}
-                <div className="hidden" aria-hidden="true">
-                    <label htmlFor="bot-trap-field">Do not fill this out if you are human</label>
-                    <input type="text" id="bot-trap-field" name="bot_trap_field" tabIndex={-1} autoComplete="off" />
-                </div>
+      const signature = await sendTransaction(transaction, connection);
+      await connection.confirmTransaction(
+        {
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        },
+        'confirmed'
+      );
 
-                <div className="space-y-4">
-                    <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl space-y-3">
-                        <div className="flex items-center justify-between text-xs text-slate-300">
-                            <span className="flex items-center space-x-1.5 font-medium">
-                                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                                <span>Deposit Recipient Address</span>
-                            </span>
-                            <span className="inline-flex items-center space-x-1 text-emerald-400 font-medium bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50">
-                                <Fuel className="w-3 h-3" />
-                                <span>Gas Covered From Sales</span>
-                            </span>
-                        </div>
-                        <div className="font-mono text-xs text-indigo-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 break-all select-all">
-                            {import.meta.env.VITE_TREASURY_ADDRESS}
-                        </div>
-                    </div>
+      const verifyRes = await fetch('/api/paywall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signature,
+          wallet: publicKey.toBase58(),
+          libraryId: 'solana-sniper-daemon',
+        }),
+      });
 
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                        <div className="w-full sm:w-auto">
-                            <WalletMultiButton className="!bg-indigo-600 hover:!bg-indigo-500 !transition !rounded-xl !font-medium !text-sm !shadow-lg !shadow-indigo-600/30" />
-                        </div>
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        throw new Error(verifyData.error || 'On-chain USDC verification failed');
+      }
 
-                        {publicKey && (
-                            <button
-                                onClick={onPay}
-                                disabled={loading}
-                                className="w-full sm:w-auto flex-1 inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium py-3 px-6 rounded-xl shadow-lg shadow-indigo-600/30 transition disabled:opacity-50 cursor-pointer"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        <span>Processing Settlement...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Terminal className="w-5 h-5" />
-                                        <span>Pay 0.1 SOL (Gas Covered)</span>
-                                    </>
-                                )}
-                            </button>
-                        )}
-                    </div>
-                </div>
+      setSuccessSig(signature);
+    } catch (err: any) {
+      setError(err?.message || 'USDC transaction failed or was rejected.');
+    } finally {
+      setLoading(false);
+    }
+  }, [publicKey, loading, treasuryAddress, baseUnits, connection, sendTransaction]);
 
-                {error && (
-                    <div className="p-4 bg-red-950/40 border border-red-800/60 rounded-xl text-red-300 text-sm flex items-start space-x-3">
-                        <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-semibold">Access Restriction</p>
-                            <p className="text-xs text-red-200 mt-0.5">{error}</p>
-                        </div>
-                    </div>
-                )}
+  return (
+    <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
 
-                {successSig && (
-                    <div className="p-4 bg-emerald-950/40 border border-emerald-800/60 rounded-xl text-emerald-300 text-sm flex items-start space-x-3">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                            <p className="font-semibold text-white">Payment Confirmed & Fully Delivered!</p>
-                            <p className="text-xs text-slate-300 font-mono break-all">Signature: {successSig}</p>
-                            <a
-                                href={`https://explorer.solana.com/tx/${successSig}?cluster=mainnet-beta`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-block text-xs text-indigo-400 hover:text-indigo-300 underline pt-1 font-medium"
-                            >
-                                View on Solana Explorer →
-                            </a>
-                        </div>
-                    </div>
-                )}
+      <div className="relative z-10 space-y-6">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Lock className="w-6 h-6" />
             </div>
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight">Solana USDC Botwall</h2>
+              <p className="text-xs text-slate-400">Direct SPL USDC Settlement (60 API Credits)</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+              {amountUsdc} USDC
+            </span>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Solana SPL Token</p>
+          </div>
         </div>
-    );
+
+        <div className="hidden" aria-hidden="true">
+          <label htmlFor="bot-trap-field">Do not fill this out if you are human</label>
+          <input type="text" id="bot-trap-field" name="bot_trap_field" tabIndex={-1} autoComplete="off" />
+        </div>
+
+        <div className="space-y-4">
+          <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span className="flex items-center space-x-1.5 font-medium">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>USDC Deposit Recipient (Solana)</span>
+              </span>
+              <span className="inline-flex items-center space-x-1 text-emerald-400 font-medium bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50">
+                <Fuel className="w-3 h-3" />
+                <span>USDC Only</span>
+              </span>
+            </div>
+            <div className="font-mono text-xs text-indigo-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 break-all select-all">
+              {treasuryAddress || 'Treasury address not configured'}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <WalletMultiButton className="!w-full sm:!w-auto !justify-center !bg-slate-800 hover:!bg-slate-700 !rounded-xl !h-11 !text-sm" />
+            {publicKey && (
+              <button
+                onClick={onPay}
+                disabled={loading}
+                className="w-full sm:flex-1 h-11 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying USDC Payment...</span>
+                  </>
+                ) : (
+                  <span>Pay {amountUsdc} USDC & Unlock 60 Calls</span>
+                )}
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successSig && (
+            <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+              <div className="break-all">
+                <p className="font-semibold">USDC Payment Verified — 60 API Calls Credited!</p>
+                <p className="font-mono text-[11px] text-emerald-400/80 mt-1">Tx: {successSig}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
