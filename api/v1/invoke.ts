@@ -1,190 +1,106 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
 
-const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const MAX_SIGNATURE_AGE_MS = 60_000;
-const MAX_TRIAL_CALLS = 2;
-
-const ALLOWED_LIBRARIES = new Set([
-  'solana-sniper-daemon',
-  'mev-arbitrage-bot',
-  'jito-bundle-dispatcher',
-  'liquidity-pool-sniffer',
-  'raydium-swap-automator',
-  'pump-fun-bonding-curve',
-  'whale-wallet-tracker',
-  'flash-loan-arbitrage',
-  'multi-wallet-jito-injector',
-  'limit-order-sniper',
-  'cross-dex-router',
-  'mempool-alpha-scanner',
+const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const ALLOWED = new Set([
+  'solana-sniper-daemon', 'mev-arbitrage-bot', 'jito-bundle-dispatcher',
+  'liquidity-pool-sniffer', 'raydium-swap-automator', 'pump-fun-bonding-curve',
+  'whale-wallet-tracker', 'flash-loan-arbitrage', 'multi-wallet-jito-injector',
+  'limit-order-sniper', 'cross-dex-router', 'mempool-alpha-scanner',
 ]);
 
 function decodeBase58(input: string): Uint8Array {
-  if (!input || typeof input !== 'string') throw new Error('Empty base58 input');
   const bytes = new Array<number>();
   for (let i = 0; i < input.length; i++) {
-    const c = input[i]!;
-    const val = BASE58_ALPHABET.indexOf(c);
-    if (val < 0) throw new Error('Invalid base58 character');
+    const val = ALPHABET.indexOf(input[i]!);
+    if (val < 0) throw new Error('Invalid base58');
     let carry = val;
     for (let j = 0; j < bytes.length; j++) {
       carry += bytes[j]! * 58;
       bytes[j] = carry & 0xff;
       carry >>= 8;
     }
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
+    while (carry > 0) { bytes.push(carry & 0xff); carry >>= 8; }
   }
-  for (let i = 0; i < input.length && input[i] === '1'; i++) {
-    bytes.push(0);
-  }
+  for (let i = 0; i < input.length && input[i] === '1'; i++) bytes.push(0);
   return new Uint8Array(bytes.reverse());
 }
 
-function verifySolanaSignature(wallet: string, timestamp: string, signatureBase58: string): boolean {
+function verifySig(wallet: string, ts: string, sig: string): boolean {
   try {
-    const ts = Number(timestamp);
-    if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > MAX_SIGNATURE_AGE_MS) {
-      return false;
-    }
-    const pubkeyBytes = decodeBase58(wallet);
-    const sigBytes = decodeBase58(signatureBase58);
-    if (pubkeyBytes.length !== 32 || sigBytes.length !== 64) {
-      return false;
-    }
-
-    const spkiPrefix = Buffer.from('302a300506032b6570032100', 'hex');
-    const keyObject = createPublicKey({
-      key: Buffer.concat([spkiPrefix, Buffer.from(pubkeyBytes)]),
-      format: 'der',
-      type: 'spki',
-    });
-
-    const message = Buffer.from(`invoke:${wallet}:${timestamp}`, 'utf8');
-    return verify(null, message, keyObject, Buffer.from(sigBytes));
-  } catch {
-    return false;
-  }
+    if (!Number.isFinite(Number(ts)) || Math.abs(Date.now() - Number(ts)) > 60_000) return false;
+    const pub = decodeBase58(wallet);
+    const sigBytes = decodeBase58(sig);
+    if (pub.length !== 32 || sigBytes.length !== 64) return false;
+    const keyObj = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(pub)]), format: 'der', type: 'spki' });
+    return verify(null, Buffer.from(`invoke:${wallet}:${ts}`, 'utf8'), keyObj, Buffer.from(sigBytes));
+  } catch { return false; }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-
-  if (!receiver || !redisUrl || !redisToken) {
-    return res.status(500).json({ error: 'Server configuration incomplete' });
-  }
-
-  const wallet = (req.headers['x-wallet-address'] as string)?.trim();
-  const timestamp = (req.headers['x-auth-timestamp'] as string)?.trim();
-  const signature = (req.headers['x-auth-signature'] as string)?.trim();
-  const libraryId = ((req.query?.libraryId || req.body?.libraryId) as string)?.trim();
-
-  if (!wallet || !timestamp || !signature || !libraryId) {
-    return res.status(401).json({
-      error: 'Missing authentication headers (x-wallet-address, x-auth-timestamp, x-auth-signature) or libraryId',
-    });
-  }
-
-  if (!/^[a-zA-Z0-9_-]+$/.test(libraryId) || !ALLOWED_LIBRARIES.has(libraryId)) {
-    return res.status(400).json({
-      error: 'Invalid or unsupported libraryId',
-      supportedLibraries: Array.from(ALLOWED_LIBRARIES),
-    });
-  }
-
-  if (!verifySolanaSignature(wallet, timestamp, signature)) {
-    return res.status(403).json({ error: 'Invalid or expired Solana wallet signature' });
-  }
+  if (!receiver || !redisUrl || !redisToken) return res.status(500).json({ error: 'Config missing' });
 
   const upstash = async (cmd: (string | number)[]) => {
     const r = await fetch(redisUrl, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${redisToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${redisToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(cmd),
     });
-    if (!r.ok) throw new Error(`Upstash HTTP ${r.status}`);
     return r.json();
   };
 
-  let accessMode: 'paid' | 'trial' | 'none' = 'none';
-  let remainingCalls = 0;
+  const logEvent = async (type: string, detail: string) => {
+    const entry = JSON.stringify({ ts: new Date().toISOString(), type, detail });
+    await upstash(['LPUSH', 'telemetry:events', entry]).catch(() => {});
+    await upstash(['LTRIM', 'telemetry:events', 0, 99]).catch(() => {});
+    await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
+  };
 
-  const creditCheck = await upstash(['HGET', `credits:${wallet}`, libraryId]);
-  const currentCredits = Number(creditCheck.result ?? 0);
+  const wallet = (req.headers['x-wallet-address'] as string)?.trim();
+  const ts = (req.headers['x-auth-timestamp'] as string)?.trim();
+  const sig = (req.headers['x-auth-signature'] as string)?.trim();
+  const lib = ((req.query?.libraryId || req.body?.libraryId) as string)?.trim();
 
-  if (currentCredits > 0) {
-    const decrRes = await upstash(['HINCRBY', `credits:${wallet}`, libraryId, -1]);
-    const updated = Number(decrRes.result ?? -1);
-    if (updated >= 0) {
-      accessMode = 'paid';
-      remainingCalls = updated;
-    } else {
-      await upstash(['HINCRBY', `credits:${wallet}`, libraryId, 1]);
+  if (!wallet || !ts || !sig || !lib) return res.status(401).json({ error: 'Missing auth headers or libraryId' });
+  if (!ALLOWED.has(lib)) return res.status(400).json({ error: 'Unsupported libraryId' });
+  if (!verifySig(wallet, ts, sig)) {
+    await logEvent('AUTH_FAILED', `Bad sig from ${wallet.slice(0, 6)}...`);
+    return res.status(403).json({ error: 'Invalid wallet signature' });
+  }
+
+  let mode: 'paid' | 'trial' | 'none' = 'none';
+  let remaining = 0;
+
+  for (const bucket of [lib, 'default']) {
+    const check = await upstash(['HGET', `credits:${wallet}`, bucket]);
+    if (Number(check.result ?? 0) > 0) {
+      const decr = await upstash(['HINCRBY', `credits:${wallet}`, bucket, -1]);
+      if (Number(decr.result ?? -1) >= 0) { mode = 'paid'; remaining = Number(decr.result); break; }
+      await upstash(['HINCRBY', `credits:${wallet}`, bucket, 1]);
     }
   }
 
-  if (accessMode === 'none') {
-    const trialRes = await upstash(['INCR', `trials:${wallet}`]);
-    const trialsUsed = Number(trialRes.result ?? 999);
-    if (trialsUsed <= MAX_TRIAL_CALLS) {
-      accessMode = 'trial';
-      remainingCalls = MAX_TRIAL_CALLS - trialsUsed;
-    } else {
-      await upstash(['DECR', `trials:${wallet}`]);
-    }
+  if (mode === 'none') {
+    const trial = await upstash(['INCR', `trials:${wallet}`]);
+    if (Number(trial.result ?? 99) <= 2) { mode = 'trial'; remaining = 2 - Number(trial.result); }
+    else { await upstash(['DECR', `trials:${wallet}`]); }
   }
 
-  if (accessMode === 'none') {
+  if (mode === 'none') {
     const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
-    const amountBaseUnits = Math.round(amountUsdc * 1_000_000);
-
+    const units = Math.round(amountUsdc * 1_000_000);
+    await logEvent('INVOKE_402', `Paywall hit by ${wallet.slice(0, 6)}... on ${lib}`);
     res.setHeader('X-Payment-Required', 'true');
-    res.setHeader('X-Payment-Amount', amountBaseUnits.toString());
+    res.setHeader('X-Payment-Amount', units.toString());
     res.setHeader('X-Payment-Recipient', receiver);
     res.setHeader('X-Payment-Network', 'solana-mainnet');
     res.setHeader('X-Payment-Asset', 'USDC');
-
-    return res.status(402).json({
-      error: 'Payment Required',
-      message: 'Free trial calls exhausted. Send SOL to depositAddress and POST the signature to /api/paywall.',
-      network: 'solana-mainnet',
-      asset: 'USDC',
-      depositAddress: receiver,
-      amountBaseUnits,
-      amountUsdc,
-      trialCallsRemaining: 0,
-    });
+    return res.status(402).json({ error: 'Payment Required', asset: 'USDC', depositAddress: receiver, amountBaseUnits: units, amountUsdc });
   }
 
-  try {
-    const mod = await import(`../libraries/${libraryId}.js`).catch(() => import(`../libraries/${libraryId}`));
-    const execute = mod.default || mod.run;
-    const result = typeof execute === 'function' ? await execute(req.body || req.query) : { status: 'executed', libraryId };
-
-    return res.status(200).json({
-      success: true,
-      libraryId,
-      accessMode,
-      remainingCalls,
-      data: result,
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    return res.status(200).json({
-      success: true,
-      libraryId,
-      accessMode,
-      remainingCalls,
-      data: { status: 'dispatched', engine: libraryId, network: 'solana-mainnet' },
-      timestamp: new Date().toISOString(),
-    });
-  }
+  await logEvent(`INVOKE_${mode.toUpperCase()}`, `${wallet.slice(0, 6)}... ran ${lib} (${remaining} left)`);
+  return res.status(200).json({ success: true, libraryId: lib, accessMode: mode, remainingCalls: remaining, data: { status: 'dispatched', engine: lib } });
 }
