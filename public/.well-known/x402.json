@@ -31,6 +31,18 @@
     "multi-wallet-jito-injector",
     "limit-order-sniper",
     "cross-dex-router",
-    "mempool-alpha-scanner"
+    "mempool-alpha-scanner",
+    "rug-pull-mint-auditor",
+    "holder-concentration-analyzer",
+    "priority-fee-oracle",
+    "token-boost-radar",
+    "smart-money-copy-scanner",
+    "orca-whirlpool-scanner",
+    "meteora-dlmm-yield-finder",
+    "solana-tps-health-monitor",
+    "validator-stake-tracker",
+    "spl-token-metadata-resolver",
+    "dex-volume-surge-detector",
+    "sol-usdc-spread-scanner"
   ]
 }

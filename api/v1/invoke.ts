@@ -5,10 +5,30 @@ import { createPublicKey, verify } from 'node:crypto';
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const ALLOWED = new Set([
-  'solana-sniper-daemon', 'mev-arbitrage-bot', 'jito-bundle-dispatcher',
-  'liquidity-pool-sniffer', 'raydium-swap-automator', 'pump-fun-bonding-curve',
-  'whale-wallet-tracker', 'flash-loan-arbitrage', 'multi-wallet-jito-injector',
-  'limit-order-sniper', 'cross-dex-router', 'mempool-alpha-scanner',
+  "solana-sniper-daemon",
+  "mev-arbitrage-bot",
+  "jito-bundle-dispatcher",
+  "liquidity-pool-sniffer",
+  "raydium-swap-automator",
+  "pump-fun-bonding-curve",
+  "whale-wallet-tracker",
+  "flash-loan-arbitrage",
+  "multi-wallet-jito-injector",
+  "limit-order-sniper",
+  "cross-dex-router",
+  "mempool-alpha-scanner",
+  "rug-pull-mint-auditor",
+  "holder-concentration-analyzer",
+  "priority-fee-oracle",
+  "token-boost-radar",
+  "smart-money-copy-scanner",
+  "orca-whirlpool-scanner",
+  "meteora-dlmm-yield-finder",
+  "solana-tps-health-monitor",
+  "validator-stake-tracker",
+  "spl-token-metadata-resolver",
+  "dex-volume-surge-detector",
+  "sol-usdc-spread-scanner"
 ]);
 
 function decodeBase58(input: string): Uint8Array {
