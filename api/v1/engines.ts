@@ -48,7 +48,7 @@ export async function runLiveSolanaEngine(lib: string, rpcUrl: string, params: R
   if (lib === 'mempool-alpha-scanner' || lib === 'cross-dex-router' || lib === 'mev-arbitrage-bot' || lib === 'flash-loan-arbitrage') {
     const tokenMint = (typeof params?.mint === 'string' && params.mint.length >= 32 ? params.mint : 'So11111111111111111111111111111111111111112').trim();
     const [perf, epoch, dex] = await Promise.all([rpc('getRecentPerformanceSamples', [3]), rpc('getEpochInfo'), dexFetch(`latest/dex/tokens/${tokenMint}`)]);
-    const s = Array.isArray(perf) && perf.length > 0 ? perf : null;
+    const s = Array.isArray(perf) && perf.length > 0 ? perf.at(0) : null;
     const tps = s && s.samplePeriodSecs > 0 ? Math.round(s.numTransactions / s.samplePeriodSecs) : null;
     const pairs = (dex?.pairs || []).filter((p: any) => p.chainId === 'solana').slice(0, 6).map((p: any) => ({ dex: p.dexId, pair: `${p.baseToken?.symbol}/${p.quoteToken?.symbol}`, priceUsd: p.priceUsd, volume24hUsd: p.volume?.h24 ?? 0, liquidityUsd: p.liquidity?.usd ?? 0, priceChange1h: p.priceChange?.h1 ?? 0 }));
     return { engine: lib, network: 'solana-mainnet', epoch: epoch?.epoch ?? null, liveTps: tps, dexRoutes: pairs };
