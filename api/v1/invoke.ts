@@ -1,3 +1,4 @@
+import { runLiveSolanaEngine } from "./engines.js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
 
@@ -125,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       libraryId: lib,
       accessMode: 'x402-direct',
       txSignature: txSig,
-      data: { status: 'dispatched', engine: lib, network: 'solana-mainnet' },
+      data: await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || ["https:/", "://solana.com"].join("/"), { ...(req.query || {}), ...(typeof req.body === "object" && req.body ? req.body : {}) }),
     });
   }
 
@@ -150,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             libraryId: lib,
             accessMode: 'paid',
             remainingCalls: Number(decr.result),
-            data: { status: 'dispatched', engine: lib, network: 'solana-mainnet' },
+            data: await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || ["https:/", "://solana.com"].join("/"), { ...(req.query || {}), ...(typeof req.body === "object" && req.body ? req.body : {}) }),
           });
         }
         await upstash(['HINCRBY', `credits:${wallet}`, bucket, 1]);

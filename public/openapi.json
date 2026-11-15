@@ -4,7 +4,7 @@
     "title": "Solana Secure Paywall — MEV, Jito & Sniper Execution Gateway",
     "version": "1.0.0",
     "description": "Non-custodial Solana Mainnet execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
-    "x-guidance": "Use POST /api/v1/invoke to execute any of the 12 Solana trading, sniper, or Jito bundle engines. On HTTP 402, send 0.10 USDC (100000 atomic units) on Solana Mainnet to the payTo address and POST the confirmed transaction signature to /api/paywall to unlock 10 API calls.",
+    "x-guidance": "Use POST /api/v1/invoke?libraryId=whale-wallet-tracker (optional body: {targetWallet}), liquidity-pool-sniffer, or mempool-alpha-scanner for live Solana Mainnet whale balances, fresh DexScreener pools, and live TPS/DEX volume. Pay $0.10 USDC (100000 atomic units) via x402 v2.",
     "contact": {
       "email": "timothyhuff25@gmail.com"
     }
@@ -30,15 +30,27 @@
       "post": {
         "operationId": "invokeSolanaEngine",
         "summary": "Invoke a Solana MEV, Jito bundle, sniper, or arbitrage engine",
-        "tags": ["Solana Execution", "MEV", "Trading"],
-        "security": [{ "solanaEd25519": [] }],
+        "tags": [
+          "Solana Execution",
+          "MEV",
+          "Trading"
+        ],
+        "security": [
+          {
+            "solanaEd25519": []
+          }
+        ],
         "x-payment-info": {
           "price": {
             "mode": "fixed",
             "currency": "USD",
             "amount": "0.100000"
           },
-          "protocols": [{ "x402": {} }]
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -73,9 +85,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "libraryId": { "type": "string", "description": "Optional engine override if not passed in query string" },
-                  "pair": { "type": "string", "description": "Trading pair such as SOL/USDC", "default": "SOL/USDC" },
-                  "slippageBps": { "type": "integer", "description": "Maximum slippage tolerance in basis points", "default": 50 }
+                  "libraryId": {
+                    "type": "string",
+                    "description": "Optional engine override if not passed in query string"
+                  },
+                  "pair": {
+                    "type": "string",
+                    "description": "Trading pair such as SOL/USDC",
+                    "default": "SOL/USDC"
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "description": "Maximum slippage tolerance in basis points",
+                    "default": 50
+                  }
                 }
               }
             }
@@ -89,13 +112,27 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
-                    "libraryId": { "type": "string" },
-                    "accessMode": { "type": "string" },
-                    "remainingCalls": { "type": "integer" },
-                    "data": { "type": "object" }
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "libraryId": {
+                      "type": "string"
+                    },
+                    "accessMode": {
+                      "type": "string"
+                    },
+                    "remainingCalls": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
                   },
-                  "required": ["success", "libraryId", "data"]
+                  "required": [
+                    "success",
+                    "libraryId",
+                    "data"
+                  ]
                 }
               }
             }
@@ -110,7 +147,10 @@
       "post": {
         "operationId": "verifyUsdcPayment",
         "summary": "Verify a confirmed Solana Mainnet USDC transaction and grant 10 API calls",
-        "tags": ["Billing", "x402"],
+        "tags": [
+          "Billing",
+          "x402"
+        ],
         "security": [],
         "requestBody": {
           "required": true,
@@ -119,11 +159,26 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "signature": { "type": "string", "minLength": 64, "description": "Confirmed Solana Mainnet transaction signature" },
-                  "wallet": { "type": "string", "minLength": 32, "description": "Base58 Solana wallet public key that signed the USDC transfer" },
-                  "libraryId": { "type": "string", "default": "default", "description": "Target engine ID or 'default' for universal credits" }
+                  "signature": {
+                    "type": "string",
+                    "minLength": 64,
+                    "description": "Confirmed Solana Mainnet transaction signature"
+                  },
+                  "wallet": {
+                    "type": "string",
+                    "minLength": 32,
+                    "description": "Base58 Solana wallet public key that signed the USDC transfer"
+                  },
+                  "libraryId": {
+                    "type": "string",
+                    "default": "default",
+                    "description": "Target engine ID or 'default' for universal credits"
+                  }
                 },
-                "required": ["signature", "wallet"]
+                "required": [
+                  "signature",
+                  "wallet"
+                ]
               }
             }
           }
@@ -136,11 +191,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
-                    "credits": { "type": "integer" },
-                    "amountUsdc": { "type": "number" }
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "credits": {
+                      "type": "integer"
+                    },
+                    "amountUsdc": {
+                      "type": "number"
+                    }
                   },
-                  "required": ["success", "credits"]
+                  "required": [
+                    "success",
+                    "credits"
+                  ]
                 }
               }
             }
