@@ -1,87 +1,52 @@
 import { useEffect, useState } from 'react';
-import { useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
 import { Activity, RefreshCcw, ExternalLink, Cpu, Users, DollarSign, BarChart3, Zap } from 'lucide-react';
 
-interface TelemetrySale {
+interface Sale {
     signature: string;
-    timestamp: string;
-    sender: string;
-    libraryName: string;
-    amount: number;
-    callsGranted: number;
+    blockTime: number | null;
     slot: number;
-    status: 'Success' | 'Pending';
+    sender: string | null;
+    amountUsdc: number;
 }
 
-const SOLANA_LIBRARY_NAMES = [
-    'Solana Sniper Daemon v4',
-    'MEV Arbitrage Bot Engine',
-    'Jito Bundle Dispatcher API',
-    'Liquidity Pool Sniffer',
-    'Raydium Swap Automator',
-    'Pump.fun Bonding Curve Bot',
-    'Whale Wallet Tracker Streamer',
-    'Flash Loan Arbitrage Router'
-];
-
-const FALLBACK_SALES: TelemetrySale[] = [
-    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', libraryName: 'Solana Sniper Daemon v4', amount: 0.1, callsGranted: 10, slot: 294821044, status: 'Success' },
-    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', libraryName: 'Jito Bundle Dispatcher API', amount: 0.1, callsGranted: 10, slot: 294821012, status: 'Success' },
-    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', libraryName: 'MEV Arbitrage Bot Engine', amount: 0.1, callsGranted: 10, slot: 294820980, status: 'Success' },
-    { signature: '1mQ4...7h5K', timestamp: '9m ago', sender: '2bN6...5p1X', libraryName: 'Liquidity Pool Sniffer', amount: 0.1, callsGranted: 10, slot: 294820915, status: 'Success' },
-    { signature: '9xL3...1w4P', timestamp: '14m ago', sender: '8hJ1...3m7Q', libraryName: 'Raydium Swap Automator', amount: 0.1, callsGranted: 10, slot: 294820850, status: 'Success' },
-];
+const short = (v: string) => `${v.slice(0, 4)}...${v.slice(-4)}`;
 
 export default function SalesConsole() {
-    const { connection } = useConnection();
-    const [sales, setSales] = useState<TelemetrySale[]>(FALLBACK_SALES);
+    const [sales, setSales] = useState<Sale[]>([]);
+    const [totalRevenue, setTotalRevenue] = useState(0);
+    const [callsPerPayment, setCallsPerPayment] = useState(10);
     const [loading, setLoading] = useState(false);
-    const [totalRevenue, setTotalRevenue] = useState(3.6);
-    const [totalCallsSold, setTotalCallsSold] = useState(2160);
-    const [activeBots, setActiveBots] = useState(38);
-    const [lastPolled, setLastPolled] = useState<string>(new Date().toLocaleTimeString());
+    const [error, setError] = useState<string | null>(null);
+    const [lastPolled, setLastPolled] = useState<string>('never');
 
     const fetchTelemetry = async () => {
         setLoading(true);
         try {
-            const targetPubkey = new PublicKey((import.meta.env.VITE_TREASURY_ADDRESS as string));
-            const signatures = await connection.getSignaturesForAddress(targetPubkey, { limit: 15 });
-
-            if (signatures && signatures.length > 0) {
-                const telemetryRecords: TelemetrySale[] = signatures.map((sig, idx) => {
-                    const blockTimeNum = sig.blockTime as unknown as number | null;
-                    const assignedLib = SOLANA_LIBRARY_NAMES[idx % SOLANA_LIBRARY_NAMES.length];
-                    const txRef = `${sig.signature.slice(0, 4)}...${sig.signature.slice(-4)}`;
-                    return {
-                        signature: sig.signature,
-                        timestamp: blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleTimeString() : 'Just now',
-                        sender: txRef,
-                        libraryName: assignedLib,
-                        amount: 0.1,
-                        callsGranted: 10,
-                        slot: Number(sig.slot),
-                        status: sig.err ? 'Pending' : 'Success'
-                    };
-                });
-                setSales(telemetryRecords);
-                setTotalRevenue(telemetryRecords.length * 0.1);
-                setTotalCallsSold(telemetryRecords.length * 10);
-            }
+            const res = await fetch('/api/sales');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to load sales');
+            setSales(data.sales);
+            setTotalRevenue(data.totalUsdc);
+            setCallsPerPayment(data.callsPerPayment);
+            setError(null);
             setLastPolled(new Date().toLocaleTimeString());
         } catch (err: any) {
-            console.warn('RPC telemetry polling handled gracefully:', err?.message || err);
+            setError(err?.message || 'Failed to load on-chain sales');
         } finally {
             setLoading(false);
         }
     };
+
+    const totalCallsSold = sales.length * callsPerPayment;
+    const uniqueBuyers = new Set(sales.map((x) => x.sender).filter(Boolean)).size;
+    const latest = sales[0];
 
     useEffect(() => {
         fetchTelemetry();
         // Polling mechanism every 30 seconds to fetch latest on-chain transaction logs
         const interval = setInterval(fetchTelemetry, 30000);
         return () => clearInterval(interval);
-    }, [connection]);
+    }, []);
 
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -98,7 +63,7 @@ export default function SalesConsole() {
                                 LIVE ON-CHAIN
                             </span>
                         </div>
-                        <p className="text-xs text-slate-400">Real-time buyer telemetry, API sales analytics, and automated Solana revenue routing.</p>
+                        <p className="text-xs text-slate-400">USDC deposits read live from the Solana blockchain.</p>
                     </div>
                 </div>
 
@@ -124,9 +89,9 @@ export default function SalesConsole() {
                         <span className="text-xs font-mono uppercase">Total Revenue</span>
                         <DollarSign className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <div className="text-2xl font-black text-white font-mono">{totalRevenue.toFixed(1)} SOL</div>
+                    <div className="text-2xl font-black text-white font-mono">{totalRevenue.toFixed(2)} USDC</div>
                     <p className="text-[10px] text-emerald-400 flex items-center space-x-1">
-                        <span>Direct to 2AoLHz...M2yhym</span>
+                        <span>Last {sales.length} on-chain deposits</span>
                     </p>
                 </div>
 
@@ -136,51 +101,47 @@ export default function SalesConsole() {
                         <Cpu className="w-4 h-4 text-indigo-400" />
                     </div>
                     <div className="text-2xl font-black text-white font-mono">{totalCallsSold} Calls</div>
-                    <p className="text-[10px] text-slate-400">10 calls per library payment</p>
+                    <p className="text-[10px] text-slate-400">{callsPerPayment} calls per payment</p>
                 </div>
 
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
                     <div className="flex items-center justify-between text-slate-400">
-                        <span className="text-xs font-mono uppercase">Active Bot Wallets</span>
+                        <span className="text-xs font-mono uppercase">Unique Buyers</span>
                         <Users className="w-4 h-4 text-violet-400" />
                     </div>
-                    <div className="text-2xl font-black text-white font-mono">{activeBots} Bots</div>
-                    <p className="text-[10px] text-violet-400">Authenticated via HTTP 402</p>
+                    <div className="text-2xl font-black text-white font-mono">{uniqueBuyers} Wallets</div>
+                    <p className="text-[10px] text-violet-400">Distinct paying wallets</p>
                 </div>
 
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">
                     <div className="flex items-center justify-between text-slate-400">
-                        <span className="text-xs font-mono uppercase">Payout Sweep</span>
+                        <span className="text-xs font-mono uppercase">Latest Payment</span>
                         <Zap className="w-4 h-4 text-amber-400" />
                     </div>
-                    <div className="text-2xl font-black text-emerald-400 font-mono">5 Min Interval</div>
-                    <p className="text-[10px] text-slate-400">Gas-covered zero-fee routing</p>
+                    <div className="text-2xl font-black text-emerald-400 font-mono">{latest ? `${latest.amountUsdc} USDC` : 'None yet'}</div>
+                    <p className="text-[10px] text-slate-400">{latest?.blockTime ? new Date(latest.blockTime * 1000).toLocaleString() : 'Waiting for first payment'}</p>
                 </div>
             </div>
 
             {/* Analytics Breakdown: What's Selling & Who's Buying */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* What's Selling */}
+                {/* Top buyers */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
                     <div className="flex items-center space-x-2 text-white font-bold">
                         <BarChart3 className="w-5 h-5 text-indigo-400" />
-                        <h3>What's Selling (Top Libraries)</h3>
+                        <h3>Top Buyers</h3>
                     </div>
-                    <div className="space-y-3">
-                        {SOLANA_LIBRARY_NAMES.slice(0, 4).map((lib, i) => {
-                            const percentages = [42, 28, 18, 12];
-                            return (
-                                <div key={lib} className="space-y-1">
-                                    <div className="flex justify-between text-xs font-mono">
-                                        <span className="text-slate-300 truncate max-w-[180px]">{lib}</span>
-                                        <span className="text-indigo-400 font-bold">{percentages[i]}%</span>
-                                    </div>
-                                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                                        <div className="bg-gradient-to-r from-indigo-500 to-violet-500 h-full rounded-full" style={{ width: `${percentages[i]}%` }} />
-                                    </div>
-                                </div>
-                            );
-                        })}
+                    <div className="space-y-2 text-xs font-mono">
+                        {Object.entries(sales.reduce<Record<string, number>>((m, x) => {
+                            if (x.sender) m[x.sender] = (m[x.sender] || 0) + x.amountUsdc;
+                            return m;
+                        }, {})).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([w, amt]) => (
+                            <div key={w} className="flex justify-between">
+                                <span className="text-slate-300">{short(w)}</span>
+                                <span className="text-indigo-400 font-bold">{amt.toFixed(2)} USDC</span>
+                            </div>
+                        ))}
+                        {sales.length === 0 && <span className="text-slate-500">No payments yet</span>}
                     </div>
                 </div>
 
@@ -189,7 +150,7 @@ export default function SalesConsole() {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2 text-white font-bold">
                             <Users className="w-5 h-5 text-emerald-400" />
-                            <h3>Who's Buying (Buyer Telemetry Feed)</h3>
+                            <h3>Recent On-Chain Payments</h3>
                         </div>
                         <span className="text-xs font-mono text-slate-400">Polling every 30s</span>
                     </div>
@@ -199,8 +160,7 @@ export default function SalesConsole() {
                             <thead className="text-xs uppercase text-slate-400 bg-slate-800/60 border-b border-slate-700">
                                 <tr>
                                     <th className="px-4 py-3">Time</th>
-                                    <th className="px-4 py-3">Library Purchased</th>
-                                    <th className="px-4 py-3">Bot Wallet</th>
+                                                                        <th className="px-4 py-3">Payer</th>
                                     <th className="px-4 py-3">Calls</th>
                                     <th className="px-4 py-3">Amount</th>
                                     <th className="px-4 py-3 text-right">Explorer</th>
@@ -209,11 +169,10 @@ export default function SalesConsole() {
                             <tbody className="divide-y divide-slate-800 font-mono text-xs">
                                 {sales.slice(0, 6).map((sale) => (
                                     <tr key={sale.signature} className="hover:bg-slate-800/40 transition">
-                                        <td className="px-4 py-3 text-slate-400">{sale.timestamp}</td>
-                                        <td className="px-4 py-3 font-semibold text-white font-sans">{sale.libraryName}</td>
-                                        <td className="px-4 py-3 text-indigo-300">{sale.sender}</td>
-                                        <td className="px-4 py-3 text-emerald-400 font-bold">+{sale.callsGranted}</td>
-                                        <td className="px-4 py-3 text-white">{sale.amount} SOL</td>
+                                        <td className="px-4 py-3 text-slate-400">{sale.blockTime ? new Date(sale.blockTime * 1000).toLocaleString() : '-'}</td>
+                                        <td className="px-4 py-3 text-indigo-300">{sale.sender ? short(sale.sender) : 'unknown'}</td>
+                                        <td className="px-4 py-3 text-emerald-400 font-bold">+{callsPerPayment}</td>
+                                        <td className="px-4 py-3 text-white">{sale.amountUsdc} USDC</td>
                                         <td className="px-4 py-3 text-right">
                                             <a
                                                 href={`https://explorer.solana.com/tx/${sale.signature}?cluster=mainnet-beta`}
@@ -227,6 +186,9 @@ export default function SalesConsole() {
                                         </td>
                                     </tr>
                                 ))}
+                                {sales.length === 0 && (
+                                    <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">{error || 'No payments received yet'}</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

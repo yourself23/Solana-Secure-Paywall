@@ -1,46 +1,35 @@
 import { useEffect, useState } from 'react';
 
-interface TelemetryItem {
-    id: string;
-    text: string;
-    time: string;
+interface Sale {
+    signature: string;
+    sender: string | null;
+    amountUsdc: number;
 }
 
 export default function LiveTicker() {
-    const [telemetry, setTelemetry] = useState<TelemetryItem[]>([
-        { id: '1', text: '0.1 SOL received from 7xKX...3v9N [Solana Sniper Daemon v4 - 60 Calls]', time: 'Just now' },
-        { id: '2', text: 'Payout sweep executed to {import.meta.env.VITE_TREASURY_ADDRESS}', time: '1m ago' },
-        { id: '3', text: '0.1 SOL received from 9mQ2...1w8R [Jito Bundle Dispatcher - 60 Calls]', time: '3m ago' }
-    ]);
+    const [sales, setSales] = useState<Sale[]>([]);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            fetch('/api/payout')
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.success) {
-                        const newItem: TelemetryItem = {
-                            id: Date.now().toString(),
-                            text: `Telemetry sync: Payout routed to ${data.targetAddress.slice(0, 6)}...`,
-                            time: 'Just now'
-                        };
-                        setTelemetry(prev => [newItem, ...prev.slice(0, 5)]);
-                    }
-                })
+        const load = () =>
+            fetch('/api/sales')
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => data && setSales(data.sales.slice(0, 6)))
                 .catch(() => {});
-        }, 10000);
-
+        load();
+        const interval = setInterval(load, 30000);
         return () => clearInterval(interval);
     }, []);
 
     return (
         <div className="w-full bg-black border-y border-slate-900 py-3 overflow-hidden font-mono text-xs text-indigo-400">
             <div className="flex space-x-8 animate-marquee whitespace-nowrap">
-                {telemetry.map(item => (
-                    <div key={item.id} className="flex items-center space-x-2">
+                {sales.length === 0 && <span className="text-slate-600">Waiting for on-chain payments…</span>}
+                {sales.map((item) => (
+                    <div key={item.signature} className="flex items-center space-x-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>{item.text}</span>
-                        <span className="text-slate-600">({item.time})</span>
+                        <span>
+                            {item.amountUsdc} USDC received{item.sender ? ` from ${item.sender.slice(0, 4)}...${item.sender.slice(-4)}` : ''}
+                        </span>
                     </div>
                 ))}
             </div>
