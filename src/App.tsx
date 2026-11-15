@@ -1,6 +1,7 @@
 import {ConnectionProvider, WalletProvider} from '@solana/wallet-adapter-react';
 import {WalletModalProvider} from '@solana/wallet-adapter-react-ui';
-import {PhantomWalletAdapter, SolflareWalletAdapter} from '@solana/wallet-adapter-wallets';
+import {PhantomWalletAdapter} from '@solana/wallet-adapter-phantom';
+import {SolflareWalletAdapter} from '@solana/wallet-adapter-solflare';
 import {useMemo} from 'react';
 import LiveTicker from './components/LiveTicker';
 import SalesConsole from './components/SalesConsole';
