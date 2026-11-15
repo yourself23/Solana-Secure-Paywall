@@ -19,7 +19,7 @@ export default function Paywall() {
   const [error, setError] = useState<string | null>(null);
 
   const treasuryAddress = (import.meta.env.VITE_TREASURY_ADDRESS as string)?.trim() || '';
-  const amountUsdc = parseFloat((import.meta.env.VITE_PAYMENT_AMOUNT_USDC as string) || '10');
+  const amountUsdc = parseFloat((import.meta.env.VITE_PAYMENT_AMOUNT_USDC as string) || '0.1');
   const baseUnits = BigInt(Math.round(amountUsdc * 1_000_000));
 
   const onPay = useCallback(async () => {
@@ -109,7 +109,7 @@ export default function Paywall() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">Solana USDC Botwall</h2>
-              <p className="text-xs text-slate-400">Direct SPL USDC Settlement (60 API Credits)</p>
+              <p className="text-xs text-slate-400">Direct SPL USDC Settlement (10 API Credits)</p>
             </div>
           </div>
           <div className="text-right">
@@ -156,7 +156,7 @@ export default function Paywall() {
                     <span>Verifying USDC Payment...</span>
                   </>
                 ) : (
-                  <span>Pay {amountUsdc} USDC & Unlock 60 Calls</span>
+                  <span>Pay {amountUsdc} USDC & Unlock 10 Calls</span>
                 )}
               </button>
             )}
@@ -173,7 +173,7 @@ export default function Paywall() {
             <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 text-xs flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
               <div className="break-all">
-                <p className="font-semibold">USDC Payment Verified — 60 API Calls Credited!</p>
+                <p className="font-semibold">USDC Payment Verified — 10 API Calls Credited!</p>
                 <p className="font-mono text-[11px] text-emerald-400/80 mt-1">Tx: {successSig}</p>
               </div>
             </div>

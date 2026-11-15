@@ -33,7 +33,7 @@ export default function BotInventoryStore() {
   const [error, setError] = useState<string | null>(null);
 
   const treasuryAddress = (import.meta.env.VITE_TREASURY_ADDRESS as string)?.trim() || '';
-  const amountUsdc = parseFloat((import.meta.env.VITE_PAYMENT_AMOUNT_USDC as string) || '10');
+  const amountUsdc = parseFloat((import.meta.env.VITE_PAYMENT_AMOUNT_USDC as string) || '0.1');
   const baseUnits = BigInt(Math.round(amountUsdc * 1_000_000));
 
   const unlockLibrary = useCallback(
@@ -101,7 +101,7 @@ export default function BotInventoryStore() {
           throw new Error(data.error || 'Failed to verify Solana USDC payment');
         }
 
-        setUnlocked((prev) => ({ ...prev, [libraryId]: Number(data.credits || 60) }));
+        setUnlocked((prev) => ({ ...prev, [libraryId]: Number(data.credits || 10) }));
       } catch (err: any) {
         setError(err?.message || 'Solana USDC payment failed.');
       } finally {
@@ -119,7 +119,7 @@ export default function BotInventoryStore() {
           <h3 className="text-lg font-bold text-white">Solana API Library Gateway (USDC)</h3>
         </div>
         <span className="text-xs font-mono text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-800/50">
-          {amountUsdc} USDC / 60 Calls
+          {amountUsdc} USDC / 10 Calls
         </span>
       </div>
 

@@ -26,11 +26,11 @@ const SOLANA_LIBRARY_NAMES = [
 ];
 
 const FALLBACK_SALES: TelemetrySale[] = [
-    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', libraryName: 'Solana Sniper Daemon v4', amount: 0.1, callsGranted: 60, slot: 294821044, status: 'Success' },
-    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', libraryName: 'Jito Bundle Dispatcher API', amount: 0.1, callsGranted: 60, slot: 294821012, status: 'Success' },
-    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', libraryName: 'MEV Arbitrage Bot Engine', amount: 0.1, callsGranted: 60, slot: 294820980, status: 'Success' },
-    { signature: '1mQ4...7h5K', timestamp: '9m ago', sender: '2bN6...5p1X', libraryName: 'Liquidity Pool Sniffer', amount: 0.1, callsGranted: 60, slot: 294820915, status: 'Success' },
-    { signature: '9xL3...1w4P', timestamp: '14m ago', sender: '8hJ1...3m7Q', libraryName: 'Raydium Swap Automator', amount: 0.1, callsGranted: 60, slot: 294820850, status: 'Success' },
+    { signature: '5Kt8...9p2q', timestamp: 'Just now', sender: '7xKX...3v9N', libraryName: 'Solana Sniper Daemon v4', amount: 0.1, callsGranted: 10, slot: 294821044, status: 'Success' },
+    { signature: '3hN7...4k1m', timestamp: '2m ago', sender: '9mQ2...1w8R', libraryName: 'Jito Bundle Dispatcher API', amount: 0.1, callsGranted: 10, slot: 294821012, status: 'Success' },
+    { signature: '8wP2...2j9L', timestamp: '5m ago', sender: '4vK9...8s2W', libraryName: 'MEV Arbitrage Bot Engine', amount: 0.1, callsGranted: 10, slot: 294820980, status: 'Success' },
+    { signature: '1mQ4...7h5K', timestamp: '9m ago', sender: '2bN6...5p1X', libraryName: 'Liquidity Pool Sniffer', amount: 0.1, callsGranted: 10, slot: 294820915, status: 'Success' },
+    { signature: '9xL3...1w4P', timestamp: '14m ago', sender: '8hJ1...3m7Q', libraryName: 'Raydium Swap Automator', amount: 0.1, callsGranted: 10, slot: 294820850, status: 'Success' },
 ];
 
 export default function SalesConsole() {
@@ -59,14 +59,14 @@ export default function SalesConsole() {
                         sender: txRef,
                         libraryName: assignedLib,
                         amount: 0.1,
-                        callsGranted: 60,
+                        callsGranted: 10,
                         slot: Number(sig.slot),
                         status: sig.err ? 'Pending' : 'Success'
                     };
                 });
                 setSales(telemetryRecords);
                 setTotalRevenue(telemetryRecords.length * 0.1);
-                setTotalCallsSold(telemetryRecords.length * 60);
+                setTotalCallsSold(telemetryRecords.length * 10);
             }
             setLastPolled(new Date().toLocaleTimeString());
         } catch (err: any) {
@@ -136,7 +136,7 @@ export default function SalesConsole() {
                         <Cpu className="w-4 h-4 text-indigo-400" />
                     </div>
                     <div className="text-2xl font-black text-white font-mono">{totalCallsSold} Calls</div>
-                    <p className="text-[10px] text-slate-400">60 calls per library payment</p>
+                    <p className="text-[10px] text-slate-400">10 calls per library payment</p>
                 </div>
 
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-2">

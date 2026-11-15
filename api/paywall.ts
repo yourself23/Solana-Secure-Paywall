@@ -24,9 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '10');
+  const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '0.1');
   const requiredUnits = Math.round(amountUsdc * 1_000_000);
-  const calls = Number(process.env.API_CALLS_PER_PAYMENT || '60');
+  const calls = Number(process.env.API_CALLS_PER_PAYMENT || '10');
 
   if (req.method !== 'POST') {
     await logEvent('402_CHALLENGE', `Quoted ${amountUsdc} USDC`);
@@ -60,20 +60,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sigKey = `spent_usdc_sig:${signature}`;
   const claim = await upstash(['SET', sigKey, wallet, 'EX', 2592000, 'NX']);
+  if (claim.error) return res.status(503).json({ error: 'Redis error', details: claim.error });
   if (claim.result !== 'OK') {
     await logEvent('REPLAY_BLOCKED', `Duplicate tx by ${wallet.slice(0, 6)}...`);
     return res.status(402).json({ error: 'Transaction already redeemed' });
   }
 
   try {
-    const fallbackRpc = ['https:/', 'api.mainnet-beta.solana.com'].join('/');
-    const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || fallbackRpc;
-    const rpcRes = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }] }),
-    });
-    const tx = (await rpcRes.json())?.result;
+    const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com';
+    // The RPC node may lag behind the client's confirmation, so retry before rejecting.
+    let tx: any = null;
+    for (let i = 0; i < 5 && !tx; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 1500));
+      const rpcRes = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }] }),
+      });
+      const body = await rpcRes.json();
+      if (body?.error) throw new Error(`RPC: ${body.error.message || JSON.stringify(body.error)}`);
+      tx = body?.result;
+    }
     if (!tx || tx.meta?.err) {
       await upstash(['DEL', sigKey]);
       await logEvent('UNCONFIRMED_TX', `Failed tx ${signature.slice(0, 8)}...`);
