@@ -5,6 +5,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/rpc/:method",
+      "destination": "/api/rpc/[method]"
+    },
+    {
       "source": "/api/solana/:tool",
       "destination": "/api/solana/[tool]"
     },

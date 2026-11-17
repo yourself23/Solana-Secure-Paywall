@@ -412,6 +412,138 @@
           }
         }
       }
+    },
+    "/api/rpc/solana": {
+      "post": {
+        "operationId": "solana_rpc_proxy",
+        "summary": "Safelisted Solana Mainnet JSON-RPC proxy ($0.005 USDC vs $0.15 competitors)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.005 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/rpc/blockhash": {
+      "get": {
+        "operationId": "solana_blockhash",
+        "summary": "Cached sub-second Solana Mainnet latest blockhash ($0.005 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.005 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/rpc/quote": {
+      "get": {
+        "operationId": "solana_swap_quote",
+        "summary": "Live Solana DEX swap liquidity & price route quote ($0.005 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.005 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/rpc/price": {
+      "get": {
+        "operationId": "solana_token_price",
+        "summary": "Live Solana SPL token USD price & DEX pair feed ($0.005 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.005 USDC on Solana Mainnet)"
+          }
+        }
+      }
     }
   }
 }
