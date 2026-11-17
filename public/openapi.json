@@ -214,6 +214,204 @@
           }
         }
       }
+    },
+    "/api/solana/whales": {
+      "get": {
+        "operationId": "whale_tracker",
+        "summary": "Live top circulating Solana Mainnet whales & wallet audit ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/solana/rug-check": {
+      "get": {
+        "operationId": "rug_check",
+        "summary": "Live SPL token mint authority, freeze authority & top holders ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/solana/fees": {
+      "get": {
+        "operationId": "priority_fees",
+        "summary": "Live Solana Mainnet priority fee oracle in microLamports ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/solana/pools": {
+      "get": {
+        "operationId": "fresh_pools",
+        "summary": "Live newly launched Solana DEX token pool profiles ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/solana/alpha": {
+      "get": {
+        "operationId": "mempool_alpha",
+        "summary": "Live Solana epoch TPS & top SOL/USDC liquidity pairs ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
+    },
+    "/api/solana/boosts": {
+      "get": {
+        "operationId": "token_boosts",
+        "summary": "Live boosted Solana token radar from DexScreener ($0.01 USDC)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Live Solana Mainnet JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required ($0.01 USDC on Solana Mainnet)"
+          }
+        }
+      }
     }
   }
 }
