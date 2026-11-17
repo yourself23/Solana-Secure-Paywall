@@ -183,6 +183,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 3. Issue Standard x402 v2 402 Challenge
   const x402Payload = Buffer.from(JSON.stringify({
     x402Version: 2,
+    extensions: {
+      bazaar: {
+        info: {
+          input: { type: "http", method: "POST", queryParams: { libraryId: "whale-wallet-tracker" } },
+          output: { type: "json", example: { success: true, libraryId: "whale-wallet-tracker", data: { network: "solana-mainnet" } } }
+        }
+      }
+    },
     accepts: [{
       scheme: 'exact',
       network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
