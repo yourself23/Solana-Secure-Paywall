@@ -1,0 +1,12 @@
+{
+  "$schema": "https://modelcontextprotocol.io",
+  "name": "io.github.yourself23/solana-secure-paywall",
+  "description": "24 live Solana Mainnet RPC, risk audit, MEV, and DEX alpha engines gated by x402 SPL USDC.",
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://solana-secure-paywall.vercel.app/api/mcp"
+    }
+  ]
+}
