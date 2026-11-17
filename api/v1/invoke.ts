@@ -1,3 +1,4 @@
+import { settleX402Header } from "./x402-settle.js";
 import { runLiveSolanaEngine } from "./engines.js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
