@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runLiveSolanaEngine } from '../v1/engines.js';
-import { settleX402Header } from '../v1/x402-settle.js';
+import { settleX402Header, getSolanaFeePayer } from '../v1/x402-settle.js';
 
 const TOOL_MAP: Record<string, string> = {
   whales: 'whale-wallet-tracker',
@@ -60,6 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, route: `/api/solana/${toolSlug}`, txSignature: settled.txSig, data });
   }
 
+  const feePayer = await getSolanaFeePayer();
   const x402Payload = Buffer.from(JSON.stringify({
     x402Version: 2,
     extensions: {
@@ -78,6 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payTo: receiver,
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
+      extra: { feePayer },
       description: `Live Solana Mainnet ${toolSlug} intelligence ($0.01 USDC)`,
     }],
   })).toString('base64');
