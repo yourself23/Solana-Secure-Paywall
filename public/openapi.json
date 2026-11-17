@@ -4,7 +4,7 @@
     "title": "Solana Secure Paywall — MEV, Jito & Sniper Execution Gateway",
     "version": "1.0.0",
     "description": "Non-custodial Solana Mainnet execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
-    "x-guidance": "Use POST /api/v1/invoke?libraryId=whale-wallet-tracker (optional body: {targetWallet}), liquidity-pool-sniffer, or mempool-alpha-scanner for live Solana Mainnet whale balances, fresh DexScreener pools, and live TPS/DEX volume. Pay $0.10 USDC (100000 atomic units) via x402 v2.",
+    "x-guidance": "Use POST /api/v1/invoke?libraryId=whale-wallet-tracker (optional body: {targetWallet}), liquidity-pool-sniffer, or mempool-alpha-scanner for live Solana Mainnet whale balances, fresh DexScreener pools, and live TPS/DEX volume. Pay 0.001 SOL (100000 atomic units) via x402 v2.",
     "contact": {
       "email": "timothyhuff25@gmail.com"
     }
@@ -218,7 +218,7 @@
     "/api/solana/whales": {
       "get": {
         "operationId": "whale_tracker",
-        "summary": "Live top circulating Solana Mainnet whales & wallet audit ($0.0095 USDC)",
+        "summary": "Live top circulating Solana Mainnet whales & wallet audit (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -243,7 +243,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -251,7 +251,7 @@
     "/api/solana/rug-check": {
       "get": {
         "operationId": "rug_check",
-        "summary": "Live SPL token mint authority, freeze authority & top holders ($0.0095 USDC)",
+        "summary": "Live SPL token mint authority, freeze authority & top holders (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -276,7 +276,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -284,7 +284,7 @@
     "/api/solana/fees": {
       "get": {
         "operationId": "priority_fees",
-        "summary": "Live Solana Mainnet priority fee oracle in microLamports ($0.0095 USDC)",
+        "summary": "Live Solana Mainnet priority fee oracle in microLamports (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -309,7 +309,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -317,7 +317,7 @@
     "/api/solana/pools": {
       "get": {
         "operationId": "fresh_pools",
-        "summary": "Live newly launched Solana DEX token pool profiles ($0.0095 USDC)",
+        "summary": "Live newly launched Solana DEX token pool profiles (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -342,7 +342,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -350,7 +350,7 @@
     "/api/solana/alpha": {
       "get": {
         "operationId": "mempool_alpha",
-        "summary": "Live Solana epoch TPS & top SOL/USDC liquidity pairs ($0.0095 USDC)",
+        "summary": "Live Solana epoch TPS & top SOL/USDC liquidity pairs (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -375,7 +375,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -383,7 +383,7 @@
     "/api/solana/boosts": {
       "get": {
         "operationId": "token_boosts",
-        "summary": "Live boosted Solana token radar from DexScreener ($0.0095 USDC)",
+        "summary": "Live boosted Solana token radar from DexScreener (0.0001 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -408,7 +408,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.0095 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
           }
         }
       }
@@ -416,7 +416,7 @@
     "/api/rpc/solana": {
       "post": {
         "operationId": "solana_rpc_proxy",
-        "summary": "Safelisted Solana Mainnet JSON-RPC proxy ($0.009 USDC vs $0.15 competitors)",
+        "summary": "Safelisted Solana Mainnet JSON-RPC proxy (0.00009 SOL vs $0.15 competitors)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -441,7 +441,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.009 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
           }
         }
       }
@@ -449,7 +449,7 @@
     "/api/rpc/blockhash": {
       "get": {
         "operationId": "solana_blockhash",
-        "summary": "Cached sub-second Solana Mainnet latest blockhash ($0.009 USDC)",
+        "summary": "Cached sub-second Solana Mainnet latest blockhash (0.00009 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -474,7 +474,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.009 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
           }
         }
       }
@@ -482,7 +482,7 @@
     "/api/rpc/quote": {
       "get": {
         "operationId": "solana_swap_quote",
-        "summary": "Live Solana DEX swap liquidity & price route quote ($0.009 USDC)",
+        "summary": "Live Solana DEX swap liquidity & price route quote (0.00009 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -507,7 +507,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.009 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
           }
         }
       }
@@ -515,7 +515,7 @@
     "/api/rpc/price": {
       "get": {
         "operationId": "solana_token_price",
-        "summary": "Live Solana SPL token USD price & DEX pair feed ($0.009 USDC)",
+        "summary": "Live Solana SPL token USD price & DEX pair feed (0.00009 SOL)",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -540,7 +540,7 @@
             }
           },
           "402": {
-            "description": "Payment Required ($0.009 USDC on Solana Mainnet)"
+            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
           }
         }
       }

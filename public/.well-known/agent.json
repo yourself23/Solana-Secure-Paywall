@@ -9,7 +9,7 @@
     "extensions": [
       {
         "uri": "https://github.com",
-        "description": "Accepts Solana Mainnet SPL USDC ($0.10 USDC / 100000 atomic units) to 2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2"
+        "description": "Accepts Solana Mainnet SPL USDC (0.001 SOL / 100000 atomic units) to 2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2"
       }
     ]
   },

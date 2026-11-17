@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const USDC_MINT = 'So11111111111111111111111111111111111111112';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         scheme: "exact",
         network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
         amount: requiredUnits.toString(),
-        asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        asset: "So11111111111111111111111111111111111111112",
         payTo: receiver,
         maxTimeoutSeconds: 300
       }]
@@ -48,9 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('X-Payment-Amount', requiredUnits.toString());
     res.setHeader('X-Payment-Recipient', receiver);
     res.setHeader('X-Payment-Network', 'solana-mainnet');
-    res.setHeader('X-Payment-Asset', 'USDC');
+    res.setHeader('X-Payment-Asset', 'SOL');
     res.setHeader('X-Payment-Mint', USDC_MINT);
-    return res.status(402).json({ error: 'Payment Required', asset: 'USDC', mint: USDC_MINT, depositAddress: receiver, amountBaseUnits: requiredUnits, amountUsdc });
+    return res.status(402).json({ error: 'Payment Required', asset: 'SOL', mint: USDC_MINT, depositAddress: receiver, amountBaseUnits: requiredUnits, amountUsdc });
   }
 
   const { signature, wallet, libraryId = 'default' } = req.body || {};

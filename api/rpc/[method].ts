@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { settleX402Header, getSolanaFeePayer } from '../v1/x402-settle.js';
 
-const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const USDC_MINT = 'So11111111111111111111111111111111111111112';
 const SAFE_RPC_METHODS = new Set([
   'getBalance', 'getAccountInfo', 'getLatestBlockhash', 'getSlot',
   'getTokenAccountsByOwner', 'getTokenSupply', 'getTransaction',
@@ -37,15 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const units = 9000; // $0.009 USDC (10% below $0.01 competitors)
-  const amountUsdc = 0.009;
+  const units = 90000; // 0.00009 SOL (10% below $0.01 competitors)
+  const amountUsdc = 0.00009;
   const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
 
   if (paymentHeader) {
     const feePayer = await getSolanaFeePayer();
     const settled = await settleX402Header(paymentHeader.trim(), receiver, units, rpcUrl, upstash, logEvent, feePayer);
     if (!settled.ok || !settled.txSig) {
-      return res.status(402).json({ error: settled.error || 'x402 $0.009 USDC settlement failed' });
+      return res.status(402).json({ error: settled.error || 'x402 0.00009 SOL settlement failed' });
     }
 
     let resultData: any = null;
@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', amountUsdc]);
-    await logEvent('RPC_PAID_0005', `+$0.009 USDC via /api/rpc/${route}`);
+    await logEvent('RPC_PAID_0005', `+0.00009 SOL via /api/rpc/${route}`);
     res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, transaction: settled.txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
     return res.status(200).json({ success: true, route: `/api/rpc/${route}`, txSignature: settled.txSig, data: resultData });
   }
@@ -102,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
       extra: { feePayer },
-      description: `Ultra-low-cost Solana Mainnet ${route} endpoint ($0.009 USDC — 50% below standard market rate)`,
+      description: `Ultra-low-cost Solana Mainnet ${route} endpoint (0.00009 SOL — 50% below standard market rate)`,
     }],
   })).toString('base64');
 
@@ -112,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('X-Payment-Amount', units.toString());
   res.setHeader('X-Payment-Recipient', receiver);
   res.setHeader('X-Payment-Network', 'solana-mainnet');
-  res.setHeader('X-Payment-Asset', 'USDC');
+  res.setHeader('X-Payment-Asset', 'SOL');
 
   return res.status(402).json({ error: 'Payment Required', x402Version: 2, route: `/api/rpc/${route}`, amountUsdc, amountBaseUnits: units, depositAddress: receiver });
 }

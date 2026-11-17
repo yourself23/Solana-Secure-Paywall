@@ -1,4 +1,4 @@
-const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const NATIVE_SOL_MINT = 'So11111111111111111111111111111111111111112';
 const SOLANA_NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const DEFAULT_FEE_PAYER = '2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4';
 
@@ -20,7 +20,7 @@ export async function getSolanaFeePayer(): Promise<string> {
 export async function settleX402Header(
   rawHeader: string,
   receiver: string,
-  requiredUnits: number,
+  requiredLamports: number,
   rpcUrl: string,
   upstash: (cmd: (string | number)[]) => Promise<any>,
   logEvent: (type: string, detail: string) => Promise<void>,
@@ -41,20 +41,6 @@ export async function settleX402Header(
     else if (rawHeader.length > 120) serializedTx = rawHeader;
   }
 
-  if (decodedObj && serializedTx) {
-    try {
-      const settleUrl = ['https:/', 'facilitator.payai.network', 'settle'].join('/');
-      const reqObj = { scheme: 'exact', network: SOLANA_NETWORK, amount: requiredUnits.toString(), asset: USDC_MINT, payTo: receiver, maxTimeoutSeconds: 300, extra: { feePayer } };
-      const facRes = await fetch(settleUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x402Version: 2, paymentPayload: decodedObj, paymentRequirements: reqObj }) });
-      const facJson = await facRes.json().catch(() => null);
-      const settledHash = facJson?.transaction || facJson?.txHash || facJson?.signature;
-      if (facRes.ok && facJson?.success && settledHash) {
-        await upstash(['SET', `spent_usdc_sig:${settledHash}`, 'x402-facilitator', 'EX', 2592000, 'NX']);
-        return { ok: true, txSig: settledHash };
-      }
-    } catch {}
-  }
-
   const rpc = async (method: string, params: any[]) => {
     const r = await fetch(rpcUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
     return r.json();
@@ -64,15 +50,15 @@ export async function settleX402Header(
     const sendRes = await rpc('sendTransaction', [serializedTx, { encoding: 'base64', preflightCommitment: 'confirmed' }]);
     if (sendRes?.error || !sendRes?.result) {
       await logEvent('PAYMENT_TX_REJECTED', `Broadcast failed: ${sendRes?.error?.message || 'unknown'}`);
-      return { ok: false, error: sendRes?.error?.message || 'Failed to broadcast signed x402 transaction' };
+      return { ok: false, error: sendRes?.error?.message || 'Failed to broadcast signed SOL transaction' };
     }
     txSig = sendRes.result;
   }
 
   if (!txSig) return { ok: false, error: 'Invalid PAYMENT-SIGNATURE header format' };
 
-  const sigKey = `spent_usdc_sig:${txSig}`;
-  const claim = await upstash(['SET', sigKey, 'x402-header', 'EX', 2592000, 'NX']);
+  const sigKey = `spent_sol_sig:${txSig}`;
+  const claim = await upstash(['SET', sigKey, 'x402-native-sol', 'EX', 2592000, 'NX']);
   if (claim.result !== 'OK') return { ok: false, error: 'Transaction signature already redeemed' };
 
   let tx = null;
@@ -87,13 +73,13 @@ export async function settleX402Header(
     return { ok: false, error: 'Transaction not found or failed on-chain' };
   }
 
-  const post = (tx.meta?.postTokenBalances || []).find((b: any) => b.mint === USDC_MINT && b.owner === receiver);
-  const pre = (tx.meta?.preTokenBalances || []).find((b: any) => b.accountIndex === post?.accountIndex);
-  const received = BigInt(post?.uiTokenAmount?.amount || '0') - BigInt(pre?.uiTokenAmount?.amount || '0');
+  const keys = (tx.transaction?.message?.accountKeys || []).map((k: any) => typeof k === 'string' ? k : k.pubkey);
+  const idx = keys.indexOf(receiver);
+  const receivedLamports = idx >= 0 ? BigInt(tx.meta.postBalances[idx] || 0) - BigInt(tx.meta.preBalances[idx] || 0) : 0n;
 
-  if (received < BigInt(requiredUnits)) {
+  if (receivedLamports < BigInt(requiredLamports)) {
     await upstash(['DEL', sigKey]);
-    return { ok: false, error: 'Insufficient USDC transfer' };
+    return { ok: false, error: `Insufficient native SOL transfer (received ${receivedLamports} lamports)` };
   }
 
   return { ok: true, txSig };

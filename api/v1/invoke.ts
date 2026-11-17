@@ -4,7 +4,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
 
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const USDC_MINT = 'So11111111111111111111111111111111111111112';
 const ALLOWED = new Set([
   "solana-sniper-daemon",
   "mev-arbitrage-bot",
@@ -211,14 +211,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('X-Payment-Amount', units.toString());
   res.setHeader('X-Payment-Recipient', receiver);
   res.setHeader('X-Payment-Network', 'solana-mainnet');
-  res.setHeader('X-Payment-Asset', 'USDC');
+  res.setHeader('X-Payment-Asset', 'SOL');
   res.setHeader('X-Payment-Mint', USDC_MINT);
 
   return res.status(402).json({
     error: 'Payment Required',
     x402Version: 2,
     network: 'solana-mainnet',
-    asset: 'USDC',
+    asset: 'SOL',
     mint: USDC_MINT,
     depositAddress: receiver,
     amountBaseUnits: units,
