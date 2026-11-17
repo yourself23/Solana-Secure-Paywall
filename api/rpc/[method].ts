@@ -37,15 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const units = 5000; // $0.005 USDC (50% cheaper than $0.01 competitors)
-  const amountUsdc = 0.005;
+  const units = 9000; // $0.009 USDC (10% below $0.01 competitors)
+  const amountUsdc = 0.009;
   const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
 
   if (paymentHeader) {
     const feePayer = await getSolanaFeePayer();
     const settled = await settleX402Header(paymentHeader.trim(), receiver, units, rpcUrl, upstash, logEvent, feePayer);
     if (!settled.ok || !settled.txSig) {
-      return res.status(402).json({ error: settled.error || 'x402 $0.005 USDC settlement failed' });
+      return res.status(402).json({ error: settled.error || 'x402 $0.009 USDC settlement failed' });
     }
 
     let resultData: any = null;
@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', amountUsdc]);
-    await logEvent('RPC_PAID_0005', `+$0.005 USDC via /api/rpc/${route}`);
+    await logEvent('RPC_PAID_0005', `+$0.009 USDC via /api/rpc/${route}`);
     res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, transaction: settled.txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
     return res.status(200).json({ success: true, route: `/api/rpc/${route}`, txSignature: settled.txSig, data: resultData });
   }
@@ -102,11 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
       extra: { feePayer },
-      description: `Ultra-low-cost Solana Mainnet ${route} endpoint ($0.005 USDC — 50% below standard market rate)`,
+      description: `Ultra-low-cost Solana Mainnet ${route} endpoint ($0.009 USDC — 50% below standard market rate)`,
     }],
   })).toString('base64');
 
-  await logEvent('CRAWLER_PROBE_402', `Served $0.005 x402 quote on /api/rpc/${route}`);
+  await logEvent('CRAWLER_PROBE_402', `Served $0.009 x402 quote on /api/rpc/${route}`);
   res.setHeader('PAYMENT-REQUIRED', x402Payload);
   res.setHeader('X-Payment-Required', 'true');
   res.setHeader('X-Payment-Amount', units.toString());

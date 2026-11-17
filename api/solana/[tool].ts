@@ -43,19 +43,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const units = 10000; // $0.01 USDC
-  const amountUsdc = 0.01;
+  const units = 9500; // $0.0095 USDC (undercuts $0.0095 data competitors)
+  const amountUsdc = 0.0095;
   const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
 
   if (paymentHeader) {
     const settled = await settleX402Header(paymentHeader.trim(), receiver, units, rpcUrl, upstash, logEvent);
     if (!settled.ok || !settled.txSig) {
-      return res.status(402).json({ error: settled.error || 'x402 $0.01 USDC settlement failed' });
+      return res.status(402).json({ error: settled.error || 'x402 $0.0095 USDC settlement failed' });
     }
     const params = { ...(req.query || {}), ...(typeof req.body === 'object' && req.body ? req.body : {}) };
     const data = await runLiveSolanaEngine(engineId, rpcUrl, params);
     await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', amountUsdc]);
-    await logEvent('MICRO_PAID_001', `+$0.01 USDC via /api/solana/${toolSlug}`);
+    await logEvent('MICRO_PAID_001', `+$0.0095 USDC via /api/solana/${toolSlug}`);
     res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, transaction: settled.txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
     return res.status(200).json({ success: true, route: `/api/solana/${toolSlug}`, txSignature: settled.txSig, data });
   }
@@ -79,11 +79,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
       extra: { feePayer },
-      description: `Live Solana Mainnet ${toolSlug} intelligence ($0.01 USDC)`,
+      description: `Live Solana Mainnet ${toolSlug} intelligence ($0.0095 USDC)`,
     }],
   })).toString('base64');
 
-  await logEvent('CRAWLER_PROBE_402', `Served $0.01 x402 quote on /api/solana/${toolSlug}`);
+  await logEvent('CRAWLER_PROBE_402', `Served $0.0095 x402 quote on /api/solana/${toolSlug}`);
   res.setHeader('PAYMENT-REQUIRED', x402Payload);
   res.setHeader('X-Payment-Required', 'true');
   res.setHeader('X-Payment-Amount', units.toString());
