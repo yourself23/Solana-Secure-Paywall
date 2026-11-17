@@ -40,6 +40,7 @@ export async function settleX402Header(
     if (rawHeader.length >= 64 && rawHeader.length <= 100 && !rawHeader.includes('=')) txSig = rawHeader;
     else if (rawHeader.length > 120) serializedTx = rawHeader;
   }
+
   if (decodedObj && serializedTx) {
     try {
       const settleUrl = ['https:/', 'facilitator.payai.network', 'settle'].join('/');

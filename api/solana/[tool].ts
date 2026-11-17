@@ -59,8 +59,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, transaction: settled.txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
     return res.status(200).json({ success: true, route: `/api/solana/${toolSlug}`, txSignature: settled.txSig, data });
   }
-
-  const feePayer = await getSolanaFeePayer();
   const feePayer = await getSolanaFeePayer();
   const x402Payload = Buffer.from(JSON.stringify({
     x402Version: 2,
@@ -80,7 +78,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payTo: receiver,
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
-      extra: { feePayer },
       extra: { feePayer },
       description: `Live Solana Mainnet ${toolSlug} intelligence ($0.01 USDC)`,
     }],
