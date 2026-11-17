@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const feePayer = await getSolanaFeePayer();
+  const feePayer = await getSolanaFeePayer();
   const x402Payload = Buffer.from(JSON.stringify({
     x402Version: 2,
     extensions: {
@@ -79,6 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payTo: receiver,
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
+      extra: { feePayer },
       extra: { feePayer },
       description: `Live Solana Mainnet ${toolSlug} intelligence ($0.01 USDC)`,
     }],

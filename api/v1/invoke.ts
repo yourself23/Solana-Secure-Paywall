@@ -182,6 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 3. Issue Standard x402 v2 402 Challenge
   const feePayer = await getSolanaFeePayer();
+  const feePayer = await getSolanaFeePayer();
   const x402Payload = Buffer.from(JSON.stringify({
     x402Version: 2,
     extensions: {
@@ -200,6 +201,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payTo: receiver,
       maxTimeoutSeconds: 300,
       mimeType: 'application/json',
+      extra: { feePayer },
       extra: { feePayer },
       description: 'Solana Mainnet MEV, Jito Bundle, and Sniper Execution Gateway',
     }],
