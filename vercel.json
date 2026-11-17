@@ -5,6 +5,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/solana/gpu-rates",
+      "destination": "/api/solana/gpu-rates"
+    },
+    {
       "source": "/api/rpc/:method",
       "destination": "/api/rpc/[method]"
     },
