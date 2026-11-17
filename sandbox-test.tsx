@@ -18,7 +18,7 @@ export async function runSandboxDiagnostics(): Promise<{ success: boolean; messa
         console.log('[Sandbox Test] Solana RPC connected successfully:', version);
 
         // 2. Verify Deposit / Treasury Address Validity
-        const treasuryAddress = new PublicKey('2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym');
+        const treasuryAddress = new PublicKey('2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2');
         const isValidTreasury = PublicKey.isOnCurve(treasuryAddress.toBytes());
         if (!isValidTreasury) {
             throw new Error('Invalid treasury public key curve');

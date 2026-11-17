@@ -10,7 +10,7 @@
     "decimals": 6
   },
   "payment": {
-    "recipient": "2AoLHzCkR9FpEjPqMma2kZs4cAFjcfb2rWMSxMM2yhym",
+    "recipient": "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2",
     "amountBaseUnits": "100000",
     "amountUsdc": 0.1,
     "creditsPerPayment": 10,
