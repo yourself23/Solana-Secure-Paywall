@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
     if (!paymentHeader) {
       const receiver = process.env.TREASURY_ADDRESS?.trim() || '';
-      const payload = Buffer.from(JSON.stringify({ x402Version: 2, accepts: [{ scheme: 'exact', network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', amount: '100000', asset: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', payTo: receiver, maxTimeoutSeconds: 300, mimeType: 'application/json' }] })).toString('base64');
+      const payload = Buffer.from(JSON.stringify({ x402Version: 2, accepts: [{ scheme: 'exact', network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', amount: '10000000', asset: 'So11111111111111111111111111111111111111112', payTo: receiver, maxTimeoutSeconds: 300, mimeType: 'application/json' }] })).toString('base64');
       res.setHeader('PAYMENT-REQUIRED', payload);
       return res.status(402).json({ error: 'Payment Required ($0.10 USDC via x402 PAYMENT-SIGNATURE)' });
     }
