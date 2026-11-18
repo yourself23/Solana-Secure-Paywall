@@ -1,48 +1,13 @@
 {
-  "version": "1.0",
+  "version": "2",
   "protocol": "x402",
-  "name": "Solana Secure Trading & MEV Gateway",
-  "description": "High-speed Solana execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
-  "network": "solana-mainnet",
-  "asset": {
-    "symbol": "SOL",
-    "mint": "So11111111111111111111111111111111111111112",
-    "decimals": 6
-  },
-  "payment": {
-    "recipient": "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2",
-    "amountBaseUnits": "100000",
-    "amountUsdc": 0.1,
-    "creditsPerPayment": 10,
-    "freeTrialCalls": 0,
-    "paywallEndpoint": "https://solana-secure-paywall.vercel.app/api/paywall"
-  },
-  "invokeEndpoint": "https://solana-secure-paywall.vercel.app/api/v1/invoke",
-  "authScheme": "solana-ed25519-header",
-  "libraries": [
-    "solana-sniper-daemon",
-    "mev-arbitrage-bot",
-    "jito-bundle-dispatcher",
-    "liquidity-pool-sniffer",
-    "raydium-swap-automator",
-    "pump-fun-bonding-curve",
-    "whale-wallet-tracker",
-    "flash-loan-arbitrage",
-    "multi-wallet-jito-injector",
-    "limit-order-sniper",
-    "cross-dex-router",
-    "mempool-alpha-scanner",
-    "rug-pull-mint-auditor",
-    "holder-concentration-analyzer",
-    "priority-fee-oracle",
-    "token-boost-radar",
-    "smart-money-copy-scanner",
-    "orca-whirlpool-scanner",
-    "meteora-dlmm-yield-finder",
-    "solana-tps-health-monitor",
-    "validator-stake-tracker",
-    "spl-token-metadata-resolver",
-    "dex-volume-surge-detector",
-    "sol-usdc-spread-scanner"
-  ]
+  "name": "Solana Secure Paywall",
+  "description": "Solana analytics and unsigned Jupiter swap plans. x402 exact payments use wrapped SOL.",
+  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "asset": { "symbol": "wSOL", "mint": "So11111111111111111111111111111111111111112", "decimals": 9 },
+  "configurationEndpoint": "/api/sales",
+  "invokeEndpoint": "/api/v1/invoke",
+  "prepaidEndpoint": "/api/paywall",
+  "skill": "/SKILL.md",
+  "openapi": "/openapi.json"
 }

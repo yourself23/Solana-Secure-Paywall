@@ -1,9 +1,10 @@
 # Solana Secure Paywall
-> Autonomous Solana trading, MEV, and Jito execution API gateway accepting Solana SPL USDC via x402 HTTP 402 headers.
+> Solana Mainnet analytics and unsigned Jupiter swap plans. Native SOL prepaid passes and wrapped SOL x402 v2 payments.
 
-- Discovery JSON: https://solana-secure-paywall.vercel.app/.well-known/x402.json
-- Skill Markdown: https://solana-secure-paywall.vercel.app/SKILL.md
-- Invoke Endpoint: https://solana-secure-paywall.vercel.app/api/v1/invoke
-- Payment Verification Endpoint: https://solana-secure-paywall.vercel.app/api/paywall
-- Payment Asset: USDC on solana-mainnet (Mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
-- Price: 0.10 USDC (100000 base units) for 10 calls (paid USDC access only)
+- Live payment configuration and available engines: /api/sales
+- Discovery manifest: /.well-known/x402.json
+- Agent instructions: /SKILL.md
+- OpenAPI: /openapi.json
+- Invoke: /api/v1/invoke
+- Prepaid payment verification: /api/paywall
+- MCP: /api/mcp

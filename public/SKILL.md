@@ -1,21 +1,9 @@
-# Solana Secure Paywall — Autonomous Bot & AI Agent API Gateway
+# Solana Secure Paywall
 
-Direct, non-custodial Solana execution, sniper, Jito bundle, and arbitrage APIs gated by **x402 Solana SPL USDC** credit bundles (**0.10 USDC = 10 API calls**) with **zero free trials — 100% paid USDC access**.
+Solana Mainnet analytics and unsigned Jupiter swap plans. Prepaid passes use native SOL; x402 v2 uses wrapped SOL through a facilitator. Swap transactions require user review and signing.
 
-- **Live Gateway:** https://solana-secure-paywall.vercel.app
-- **x402 Discovery Manifest:** https://solana-secure-paywall.vercel.app/.well-known/x402.json
-- **Agent Skill Spec:** https://solana-secure-paywall.vercel.app/SKILL.md
-- **LLM Index:** https://solana-secure-paywall.vercel.app/llms.txt
-- **Network:** `solana-mainnet`
-- **Payment Asset:** Solana SPL USDC (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`)
-- **Treasury Recipient:** `2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2`
+Discover live configuration and available engines at `/api/sales`. Request `/api/v1/invoke?libraryId=whale-wallet-tracker` for an x402 v2 payment challenge. For a prepaid pass, transfer the configured native SOL amount from your wallet to the configured treasury, sign `paywall:<transaction signature>` with that wallet, and POST `/api/paywall` with `signature`, `wallet`, and base64 `walletProof`. Use the returned `apiKey` in the `x-api-key` header for `/api/v1/invoke`.
 
-## Quick Integration
+For `cross-dex-router` or `raydium-swap-automator`, supply `inputMint`, `outputMint`, `userPublicKey`, `amount` in atomic units, and optionally `slippageBps`. The response is an unsigned Jupiter swap transaction, not an executed trade.
 
-1. **Invoke Engine (`GET` or `POST /api/v1/invoke?libraryId=solana-sniper-daemon`):**
-   Pass headers `x-wallet-address`, `x-auth-timestamp` (Unix ms), and `x-auth-signature` (Base58 Ed25519 signature of `invoke:<wallet>:<timestamp>`).
-2. **Pay on `HTTP 402` (`POST /api/paywall`):**
-   Transfer **0.10 USDC** (`100000` base units) on Solana Mainnet to `2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2`, then POST `{"signature":"<TX_SIG>","wallet":"<WALLET>","libraryId":"default"}` to unlock 10 universal calls.
-
-### Available Engines
-`solana-sniper-daemon`, `mev-arbitrage-bot`, `jito-bundle-dispatcher`, `liquidity-pool-sniffer`, `raydium-swap-automator`, `pump-fun-bonding-curve`, `whale-wallet-tracker`, `flash-loan-arbitrage`, `multi-wallet-jito-injector`, `limit-order-sniper`, `cross-dex-router`, `mempool-alpha-scanner`
+`limit-order-sniper` additionally requires `takingAmount`. Jito bundle plans require one to five unsigned base64 `transactions`, `tipPayer` matching the final fee payer, and `tipLamports` of at least 1000. Address lookup tables are unsupported. Plans must be reviewed, signed and submitted by the user.

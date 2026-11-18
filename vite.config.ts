@@ -17,7 +17,7 @@ export default defineConfig(() => {
       },
     },
     optimizeDeps: {
-      include: ['@solana/web3.js', '@solana/wallet-adapter-react', '@solana/wallet-adapter-react-ui', '@solana/wallet-adapter-wallets'],
+      include: ['@solana/web3.js', '@solana/wallet-adapter-react', '@solana/wallet-adapter-react-ui'],
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',

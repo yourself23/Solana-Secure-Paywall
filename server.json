@@ -1,7 +1,7 @@
 {
   "$schema": "https://modelcontextprotocol.io",
   "name": "io.github.yourself23/solana-secure-paywall",
-  "description": "24 live Solana Mainnet RPC, risk audit, MEV, and DEX alpha engines gated by x402 SPL USDC.",
+  "description": "Solana Mainnet analytics and unsigned swap plans gated by wrapped SOL x402 payments.",
   "version": "1.0.0",
   "remotes": [
     {

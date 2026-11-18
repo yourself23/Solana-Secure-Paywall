@@ -16,16 +16,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run TypeScript & Lint Checks
         run: |
           npx tsc --noEmit
-          npm run lint
+          npx tsc --noEmit -p api/tsconfig.json
+          node --import tsx --test tests/payments.test.ts tests/sniper.test.ts
 
       - name: Deploy to Vercel (Production)
         if: github.ref == 'refs/heads/main'
@@ -35,8 +36,8 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::warning::VERCEL_TOKEN missing; skipping deploy."
-            exit 0
+            echo "::error::VERCEL_TOKEN missing; production deployment cannot proceed."
+            exit 1
           fi
           npx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
           npx vercel@latest build --prod --token="$VERCEL_TOKEN"

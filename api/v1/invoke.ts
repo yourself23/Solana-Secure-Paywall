@@ -1,10 +1,9 @@
-import { settleX402Header, getSolanaFeePayer } from "./x402-settle.js";
-import { runLiveSolanaEngine } from "./engines.js";
+import { handleX402 } from "../_lib/x402-settle.js";
+import { AVAILABLE_ENGINES, getAvailableEngines, runLiveSolanaEngine } from "../_lib/engines.js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
 
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-const USDC_MINT = 'So11111111111111111111111111111111111111112';
 const ALLOWED = new Set([
   "solana-sniper-daemon",
   "mev-arbitrage-bot",
@@ -64,15 +63,6 @@ function verifySig(wallet: string, ts: string, sig: string): boolean {
   } catch { return false; }
 }
 
-function extractTxSignature(paymentHeader: string): string | null {
-  try {
-    const decoded = JSON.parse(Buffer.from(paymentHeader, 'base64').toString('utf8'));
-    return decoded?.payload?.signature || decoded?.payload?.transaction || decoded?.signature || null;
-  } catch {
-    return paymentHeader.length >= 64 && paymentHeader.length <= 100 ? paymentHeader : null;
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
@@ -85,7 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: { Authorization: `Bearer ${redisToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(cmd),
     });
-    return r.json();
+    const result = await r.json();
+    if (!r.ok || result.error) throw new Error(`Redis request failed: ${result.error || r.status}`);
+    return result;
   };
 
   const logEvent = async (type: string, detail: string) => {
@@ -95,60 +87,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const amountUsdc = parseFloat(process.env.PAYMENT_AMOUNT_USDC || '0.10');
-  const units = Math.round(amountUsdc * 1_000_000);
-  const lib = ((req.query?.libraryId || req.body?.libraryId || 'solana-sniper-daemon') as string).trim();
+  const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+  const units = Math.round(amountSol * 1_000_000_000);
+  const lib = ((req.query?.libraryId || req.body?.libraryId || 'whale-wallet-tracker') as string).trim();
 
   if (!ALLOWED.has(lib)) {
-    return res.status(400).json({ error: 'Unsupported libraryId', supportedLibraries: Array.from(ALLOWED) });
+    return res.status(400).json({ error: 'Unsupported libraryId', supportedLibraries: getAvailableEngines() });
+  }
+  if (!(AVAILABLE_ENGINES as readonly string[]).includes(lib)) {
+    return res.status(501).json({ error: 'Engine is not implemented and cannot be purchased', availableLibraries: getAvailableEngines() });
+  }
+  if (!getAvailableEngines().includes(lib)) {
+    return res.status(503).json({ error: 'Engine is not configured', availableLibraries: getAvailableEngines() });
   }
 
-  // 1. Native x402 v2 Header Flow (agentcash / autonomous x402 clients)
-  const paymentHeader = (req.headers['payment-signature'] || req.headers['x-payment']) as string | undefined;
-  if (paymentHeader) {
-    const txSig = extractTxSignature(paymentHeader.trim());
-    if (!txSig) return res.status(402).json({ error: 'Invalid PAYMENT-SIGNATURE header format' });
-
-    const sigKey = `spent_usdc_sig:${txSig}`;
-    const claim = await upstash(['SET', sigKey, 'x402-header', 'EX', 2592000, 'NX']);
-    if (claim.result !== 'OK') {
-      await logEvent('REPLAY_BLOCKED', `Duplicate x402 header tx ${txSig.slice(0, 8)}...`);
-      return res.status(402).json({ error: 'Transaction signature already redeemed' });
+  const apiKey = (req.headers['x-api-key'] as string | undefined)?.trim();
+  if (apiKey) {
+    const key = `apikey:${apiKey}`;
+    const available = await upstash(['GET', key]);
+    if (!available.result) return res.status(401).json({ error: 'Invalid or expired API key' });
+    const record = JSON.parse(available.result);
+    if (!Number.isInteger(record.credits) || record.credits < 1) {
+      return res.status(402).json({ error: 'Prepaid API key has no remaining credits' });
     }
 
-    const fallbackRpc = ['https:/', '://solana.com'].join('/');
-    const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || fallbackRpc;
-    const rpcRes = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [txSig, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }] }),
-    });
-    const tx = (await rpcRes.json())?.result;
-    if (!tx || tx.meta?.err) {
-      await upstash(['DEL', sigKey]);
-      return res.status(402).json({ error: 'Transaction not found or not yet confirmed on-chain' });
+    const data = await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com', { ...(req.query || {}), ...(typeof req.body === 'object' && req.body ? req.body : {}) });
+    const debit = await upstash(['EVAL', `
+      local value = redis.call('GET', KEYS[1])
+      if not value then return -1 end
+      local record = cjson.decode(value)
+      if not record.credits or record.credits < 1 then return -1 end
+      record.credits = record.credits - 1
+      redis.call('SET', KEYS[1], cjson.encode(record), 'KEEPTTL')
+      return record.credits
+    `, 1, key]);
+    if (!Number.isInteger(debit.result) || debit.result < 0) {
+      return res.status(402).json({ error: 'Prepaid API key has no remaining credits' });
     }
-
-    const postEntry = (tx.meta?.postTokenBalances || []).find((b: any) => b.mint === USDC_MINT && b.owner === receiver);
-    const preEntry = (tx.meta?.preTokenBalances || []).find((b: any) => b.accountIndex === postEntry?.accountIndex);
-    const received = BigInt(postEntry?.uiTokenAmount?.amount || '0') - BigInt(preEntry?.uiTokenAmount?.amount || '0');
-
-    if (received < BigInt(units)) {
-      await upstash(['DEL', sigKey]);
-      return res.status(402).json({ error: 'Insufficient USDC transfer' });
-    }
-
-    await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', amountUsdc]);
-    await logEvent('AGENTCASH_PAID', `+${amountUsdc} USDC via x402 header on ${lib}`);
-    res.setHeader('PAYMENT-RESPONSE', Buffer.from(JSON.stringify({ success: true, txHash: txSig, network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' })).toString('base64'));
-
-    return res.status(200).json({
-      success: true,
-      libraryId: lib,
-      accessMode: 'x402-direct',
-      txSignature: txSig,
-      data: await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || ["https:/", "://solana.com"].join("/"), { ...(req.query || {}), ...(typeof req.body === "object" && req.body ? req.body : {}) }),
-    });
+    return res.status(200).json({ success: true, libraryId: lib, accessMode: 'prepaid', remainingCalls: debit.result, data });
   }
 
   // 2. Prepaid Credit + Ed25519 Header Flow
@@ -164,6 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const bucket of [lib, 'default']) {
       const check = await upstash(['HGET', `credits:${wallet}`, bucket]);
       if (Number(check.result ?? 0) > 0) {
+        const data = await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com', { ...(req.query || {}), ...(typeof req.body === 'object' && req.body ? req.body : {}) });
         const decr = await upstash(['HINCRBY', `credits:${wallet}`, bucket, -1]);
         if (Number(decr.result ?? -1) >= 0) {
           await logEvent('INVOKE_PAID', `${wallet.slice(0, 6)}... ran ${lib} (${decr.result} left)`);
@@ -172,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             libraryId: lib,
             accessMode: 'paid',
             remainingCalls: Number(decr.result),
-            data: await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || ["https:/", "://solana.com"].join("/"), { ...(req.query || {}), ...(typeof req.body === "object" && req.body ? req.body : {}) }),
+            data,
           });
         }
         await upstash(['HINCRBY', `credits:${wallet}`, bucket, 1]);
@@ -180,48 +157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // 3. Issue Standard x402 v2 402 Challenge
-  const feePayer = await getSolanaFeePayer();
-  const x402Payload = Buffer.from(JSON.stringify({
-    x402Version: 2,
-    extensions: {
-      bazaar: {
-        info: {
-          input: { type: "http", method: "POST", queryParams: { libraryId: "whale-wallet-tracker" } },
-          output: { type: "json", example: { success: true, libraryId: "whale-wallet-tracker", data: { network: "solana-mainnet" } } }
-        }
-      }
-    },
-    accepts: [{
-      scheme: 'exact',
-      network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
-      amount: units.toString(),
-      asset: USDC_MINT,
-      payTo: receiver,
-      maxTimeoutSeconds: 300,
-      mimeType: 'application/json',
-      extra: { feePayer },
-      description: 'Solana Mainnet MEV, Jito Bundle, and Sniper Execution Gateway',
-    }],
-  })).toString('base64');
-
-  await logEvent('CRAWLER_PROBE_402', `Served x402 v2 quote on ${lib}`);
-  res.setHeader('PAYMENT-REQUIRED', x402Payload);
-  res.setHeader('X-Payment-Required', 'true');
-  res.setHeader('X-Payment-Amount', units.toString());
-  res.setHeader('X-Payment-Recipient', receiver);
-  res.setHeader('X-Payment-Network', 'solana-mainnet');
-  res.setHeader('X-Payment-Asset', 'SOL');
-  res.setHeader('X-Payment-Mint', USDC_MINT);
-
-  return res.status(402).json({
-    error: 'Payment Required',
-    x402Version: 2,
-    network: 'solana-mainnet',
-    asset: 'SOL',
-    mint: USDC_MINT,
-    depositAddress: receiver,
-    amountBaseUnits: units,
-    amountUsdc,
+  return handleX402(req, res, receiver, units, async () => {
+    const data = await runLiveSolanaEngine(lib, process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com', { ...(req.query || {}), ...(typeof req.body === 'object' && req.body ? req.body : {}) });
+    return { libraryId: lib, accessMode: 'x402-direct', data };
   });
 }

@@ -1,21 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
+import { PublicKey } from '@solana/web3.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const receiver = process.env.TREASURY_ADDRESS?.trim() || '2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2';
+  const receiver = process.env.TREASURY_ADDRESS?.trim();
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  const fallbackRpc = ['https:/', '://solana.com'].join('/');
+  const paywallSecret = process.env.PAYWALL_SECRET?.trim();
+  const fallbackRpc = 'https://api.mainnet-beta.solana.com';
   const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || fallbackRpc;
 
   const signature = String(req.body?.signature || '').trim();
   if (!signature || signature.length < 64) {
-    return res.status(400).json({ error: 'Valid Solana transaction signature required (0.001 SOL / 1,000,000 lamports)' });
+    return res.status(400).json({ error: 'Valid Solana transaction signature required' });
   }
-  if (!redisUrl || !redisToken) {
-    return res.status(500).json({ error: 'Redis store unconfigured' });
+  if (!receiver || !redisUrl || !redisToken || !paywallSecret) {
+    return res.status(500).json({ error: 'Treasury, payment store or PAYWALL_SECRET unconfigured' });
+  }
+  const wallet = String(req.body?.wallet || '').trim();
+  const walletProof = String(req.body?.walletProof || '').trim();
+  let walletKey: PublicKey;
+  try {
+    walletKey = new PublicKey(wallet);
+    const key = crypto.createPublicKey({
+      key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(walletKey.toBytes())]),
+      format: 'der',
+      type: 'spki',
+    });
+    if (!crypto.verify(null, Buffer.from(`paywall:${signature}`), key, Buffer.from(walletProof, 'base64'))) {
+      return res.status(403).json({ error: 'Invalid wallet proof' });
+    }
+  } catch {
+    return res.status(403).json({ error: 'Invalid wallet or wallet proof' });
+  }
+  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+  const lamports = Math.round(amountSol * 1_000_000_000);
+  if (!Number.isSafeInteger(lamports) || lamports <= 0 || Math.abs(lamports / 1_000_000_000 - amountSol) > 1e-12) {
+    return res.status(500).json({ error: 'Invalid PAYMENT_AMOUNT_SOL configuration' });
   }
 
   const upstash = async (cmd: (string | number)[]) => {
@@ -24,15 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: { Authorization: `Bearer ${redisToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(cmd),
     });
-    return r.json();
+    const result = await r.json();
+    if (!r.ok || result.error) throw new Error(`Redis request failed: ${result.error || r.status}`);
+    return result;
   };
 
   const sigKey = `spent_sol_sig:${signature}`;
-  const claim = await upstash(['SET', sigKey, 'prepaid-pass', 'EX', 2592000, 'NX']);
-  if (claim.result !== 'OK') {
-    return res.status(409).json({ error: 'Transaction signature already redeemed' });
-  }
-
   const rpcRes = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -44,25 +64,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }),
   });
   const rpcJson = await rpcRes.json();
+  if (!rpcRes.ok || rpcJson?.error) {
+    return res.status(503).json({ error: `Solana RPC error: ${rpcJson?.error?.message || rpcRes.status}` });
+  }
   const tx = rpcJson?.result;
 
   if (!tx || tx.meta?.err) {
-    await upstash(['DEL', sigKey]);
     return res.status(402).json({ error: 'Transaction not confirmed on Solana Mainnet yet' });
   }
 
-  const keys = (tx.transaction?.message?.accountKeys || []).map((k: any) => (typeof k === 'string' ? k : k.pubkey));
+  const accountKeys = tx.transaction?.message?.accountKeys || [];
+  if (!accountKeys.some((k: any) => typeof k !== 'string' && k.pubkey === walletKey.toBase58() && k.signer === true)) {
+    return res.status(403).json({ error: 'Wallet did not sign the payment transaction' });
+  }
+  const keys = accountKeys.map((k: any) => (typeof k === 'string' ? k : k.pubkey));
   const idx = keys.indexOf(receiver);
   const receivedLamports = idx >= 0 ? BigInt(tx.meta.postBalances[idx] || 0) - BigInt(tx.meta.preBalances[idx] || 0) : 0n;
+  const requiredLamports = BigInt(lamports);
+  const instructions = tx.transaction?.message?.instructions || [];
+  const paidLamports = instructions.reduce((sum: bigint, instruction: any) => {
+    const info = instruction.parsed?.info;
+    if (instruction.program !== 'system' || instruction.parsed?.type !== 'transfer' || info?.source !== wallet || info?.destination !== receiver) return sum;
+    const amount = info.lamports;
+    return Number.isSafeInteger(amount) && amount > 0 ? sum + BigInt(amount) : sum;
+  }, 0n);
 
-  if (receivedLamports < 1_000_000n) {
-    await upstash(['DEL', sigKey]);
-    return res.status(402).json({ error: `Insufficient Native SOL transfer (received ${receivedLamports} lamports, need 1,000,000)` });
+  if (receivedLamports < requiredLamports || paidLamports < requiredLamports) {
+    return res.status(402).json({ error: `Insufficient native SOL transfer from the signing wallet (need ${requiredLamports} lamports)` });
   }
 
-  const apiKey = `sol_live_${crypto.randomBytes(18).toString('hex')}`;
-  await upstash(['SET', `apikey:${apiKey}`, JSON.stringify({ credits: 10, signature, createdAt: new Date().toISOString() }), 'EX', 2592000]);
-  await upstash(['HINCRBYFLOAT', 'telemetry:stats', 'total_usdc_earned', 0.001]);
+  const apiKey = `sol_live_${crypto.createHmac('sha256', paywallSecret).update(`${signature}:${wallet}`).digest('hex')}`;
+  const fingerprint = crypto.createHash('sha256').update(apiKey).digest('hex');
+  const issued = await upstash(['EVAL', `
+    local existing = redis.call('GET', KEYS[1])
+    if existing then
+      if existing == ARGV[1] and redis.call('EXISTS', KEYS[2]) == 1 then return 2 end
+      return 0
+    end
+    redis.call('SET', KEYS[1], ARGV[1])
+    redis.call('SET', KEYS[2], ARGV[2], 'EX', 2592000)
+    redis.call('HINCRBYFLOAT', KEYS[3], 'total_sol_earned', ARGV[3])
+    return 1
+  `, 3, sigKey, `apikey:${apiKey}`, 'telemetry:stats', fingerprint, JSON.stringify({ credits: 10, signature, createdAt: new Date().toISOString() }), amountSol]);
+  if (issued.result !== 1 && issued.result !== 2) {
+    return res.status(409).json({ error: 'Transaction signature already redeemed' });
+  }
 
-  return res.status(200).json({ success: true, apiKey, credits: 10, asset: 'SOL', lamports: 1000000 });
+  const stored = await upstash(['GET', `apikey:${apiKey}`]);
+  if (!stored.result) return res.status(500).json({ error: 'Issued API key could not be retrieved' });
+  return res.status(200).json({ success: true, apiKey, credits: JSON.parse(stored.result).credits, asset: 'SOL', amountSol, lamports: Number(requiredLamports) });
 }

@@ -1,6 +1,6 @@
 {
-  "name": "Solana MEV, Risk & Alpha Execution Agent",
-  "description": "Autonomous Solana Mainnet whale tracking, rug-pull mint auditing, Jito priority fee oracle, and DEX liquidity scanner paid via x402 Solana SPL USDC.",
+  "name": "Solana Analytics and Unsigned Swap Plans",
+  "description": "Solana Mainnet analytics and unsigned Jupiter swap plans, paid via wrapped SOL x402 or native SOL prepaid passes.",
   "url": "https://solana-secure-paywall.vercel.app",
   "version": "1.0.0",
   "capabilities": {
@@ -9,7 +9,7 @@
     "extensions": [
       {
         "uri": "https://github.com",
-        "description": "Accepts Solana Mainnet SPL USDC (0.001 SOL / 100000 atomic units) to 2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2"
+        "description": "Payment details and available engines are published at /api/sales."
       }
     ]
   },
@@ -18,9 +18,9 @@
   "skills": [
     {
       "id": "solana-mainnet-alpha",
-      "name": "Solana Mainnet On-Chain Intelligence & Execution",
-      "description": "24 live Solana RPC and DEX engines via POST /api/v1/invoke or Remote MCP /api/mcp",
-      "tags": ["solana", "x402", "usdc", "mev", "whale-tracker", "defi"]
+      "name": "Solana Mainnet Analytics and Unsigned Plans",
+      "description": "Solana analytics and unsigned swap plans via POST /api/v1/invoke or Remote MCP /api/mcp",
+      "tags": ["solana", "x402", "wsol", "analytics", "defi"]
     }
   ]
 }

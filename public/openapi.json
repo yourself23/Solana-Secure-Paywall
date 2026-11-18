@@ -1,82 +1,60 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Solana Secure Paywall — MEV, Jito & Sniper Execution Gateway",
-    "version": "1.0.0",
-    "description": "Non-custodial Solana Mainnet execution, Jito bundle, sniper, and arbitrage APIs gated by direct Solana SPL USDC settlement.",
-    "x-guidance": "Use POST /api/v1/invoke?libraryId=whale-wallet-tracker (optional body: {targetWallet}), liquidity-pool-sniffer, or mempool-alpha-scanner for live Solana Mainnet whale balances, fresh DexScreener pools, and live TPS/DEX volume. Pay 0.001 SOL (100000 atomic units) via x402 v2.",
-    "contact": {
-      "email": "timothyhuff25@gmail.com"
-    }
+    "title": "Solana Secure Paywall",
+    "version": "2.0.0",
+    "description": "Solana analytics and unsigned Jupiter swap plans. Prepaid passes use native SOL; x402 v2 exact payments use wrapped SOL."
   },
-  "servers": [
-    {
-      "url": "https://solana-secure-paywall.vercel.app",
-      "description": "Solana Mainnet Production Gateway"
-    }
-  ],
+  "servers": [{ "url": "https://solana-secure-paywall.vercel.app" }],
   "components": {
     "securitySchemes": {
-      "solanaEd25519": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-auth-signature",
-        "description": "Base58 detached Ed25519 signature of 'invoke:<wallet>:<timestamp>' paired with x-wallet-address and x-auth-timestamp headers."
-      }
+      "prepaidKey": { "type": "apiKey", "in": "header", "name": "x-api-key" }
     }
   },
   "paths": {
+    "/api/sales": {
+      "get": {
+        "operationId": "getPaymentConfiguration",
+        "summary": "Get the configured treasury, native SOL pass price and available engines",
+        "responses": { "200": { "description": "Payment configuration" }, "503": { "description": "Payment configuration is unavailable" } }
+      }
+    },
+    "/api/paywall": {
+      "post": {
+        "operationId": "redeemNativeSolPayment",
+        "summary": "Redeem a native SOL transfer for a prepaid API key",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["signature", "wallet", "walletProof"],
+                "properties": {
+                  "signature": { "type": "string", "description": "Confirmed transfer transaction signature" },
+                  "wallet": { "type": "string", "description": "Transfer source and signer" },
+                  "walletProof": { "type": "string", "description": "Base64 Ed25519 signature of paywall:<transaction signature>" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Payment redeemed; response includes apiKey and remaining credits" },
+          "402": { "description": "Payment not confirmed or insufficient" },
+          "403": { "description": "Invalid wallet proof" },
+          "409": { "description": "Payment already redeemed" }
+        }
+      }
+    },
     "/api/v1/invoke": {
       "post": {
-        "operationId": "invokeSolanaEngine",
-        "summary": "Invoke a Solana MEV, Jito bundle, sniper, or arbitrage engine",
-        "tags": [
-          "Solana Execution",
-          "MEV",
-          "Trading"
-        ],
-        "security": [
-          {
-            "solanaEd25519": []
-          }
-        ],
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.100000"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
+        "operationId": "invokeEngine",
+        "summary": "Invoke an available Solana analytics engine or create an unsigned swap plan",
+        "description": "Use a prepaid x-api-key or the x402 v2 PAYMENT-REQUIRED and PAYMENT-SIGNATURE headers. Discover current engines and prices at /api/sales.",
+        "security": [{}, { "prepaidKey": [] }],
         "parameters": [
-          {
-            "name": "libraryId",
-            "in": "query",
-            "required": true,
-            "description": "Target Solana engine ID (e.g., solana-sniper-daemon, jito-bundle-dispatcher, mev-arbitrage-bot)",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "solana-sniper-daemon",
-                "mev-arbitrage-bot",
-                "jito-bundle-dispatcher",
-                "liquidity-pool-sniffer",
-                "raydium-swap-automator",
-                "pump-fun-bonding-curve",
-                "whale-wallet-tracker",
-                "flash-loan-arbitrage",
-                "multi-wallet-jito-injector",
-                "limit-order-sniper",
-                "cross-dex-router",
-                "mempool-alpha-scanner"
-              ],
-              "default": "solana-sniper-daemon"
-            }
-          }
+          { "name": "libraryId", "in": "query", "required": false, "schema": { "type": "string", "default": "whale-wallet-tracker" } }
         ],
         "requestBody": {
           "required": false,
@@ -85,508 +63,50 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "libraryId": {
-                    "type": "string",
-                    "description": "Optional engine override if not passed in query string"
-                  },
-                  "pair": {
-                    "type": "string",
-                    "description": "Trading pair such as SOL/USDC",
-                    "default": "SOL/USDC"
-                  },
-                  "slippageBps": {
-                    "type": "integer",
-                    "description": "Maximum slippage tolerance in basis points",
-                    "default": 50
-                  }
+                  "targetWallet": { "type": "string" },
+                  "mint": { "type": "string" },
+                  "inputMint": { "type": "string" },
+                  "outputMint": { "type": "string" },
+                  "userPublicKey": { "type": "string" },
+                  "amount": { "type": "string", "description": "Swap input amount in atomic units" },
+                  "takingAmount": { "type": "string", "description": "Limit order output amount in atomic units" },
+                  "slippageBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                  "transactions": { "type": "array", "items": { "type": "string" }, "description": "Unsigned base64 transactions for a Jito bundle" },
+                  "tipPayer": { "type": "string" },
+                  "tipLamports": { "type": "integer", "minimum": 1000 }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Engine executed successfully and credit deducted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "libraryId": {
-                      "type": "string"
-                    },
-                    "accessMode": {
-                      "type": "string"
-                    },
-                    "remainingCalls": {
-                      "type": "integer"
-                    },
-                    "data": {
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "libraryId",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required — 0.10 USDC on Solana Mainnet via x402 v2"
-          }
+          "200": { "description": "Engine result; swap transactions are unsigned" },
+          "402": { "description": "Payment required or prepaid credits exhausted" },
+          "501": { "description": "Engine not implemented" },
+          "503": { "description": "Upstream or payment service unavailable" }
         }
       }
     },
-    "/api/paywall": {
+    "/api/solana/{tool}": {
+      "get": {
+        "operationId": "getSolanaTool",
+        "summary": "Query Solana analytics using a wrapped SOL x402 payment",
+        "parameters": [{ "name": "tool", "in": "path", "required": true, "schema": { "type": "string", "enum": ["whales", "rug-check", "fees", "pools", "boosts", "gpu-rates"] } }],
+        "responses": { "200": { "description": "Tool result" }, "402": { "description": "Payment required" } }
+      }
+    },
+    "/api/rpc/{method}": {
+      "get": {
+        "operationId": "getRpcData",
+        "summary": "Query a Solana blockhash or token price using a wrapped SOL x402 payment",
+        "parameters": [{ "name": "method", "in": "path", "required": true, "schema": { "type": "string", "enum": ["blockhash", "price"] } }],
+        "responses": { "200": { "description": "RPC data" }, "402": { "description": "Payment required" } }
+      },
       "post": {
-        "operationId": "verifyUsdcPayment",
-        "summary": "Verify a confirmed Solana Mainnet USDC transaction and grant 10 API calls",
-        "tags": [
-          "Billing",
-          "x402"
-        ],
-        "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "signature": {
-                    "type": "string",
-                    "minLength": 64,
-                    "description": "Confirmed Solana Mainnet transaction signature"
-                  },
-                  "wallet": {
-                    "type": "string",
-                    "minLength": 32,
-                    "description": "Base58 Solana wallet public key that signed the USDC transfer"
-                  },
-                  "libraryId": {
-                    "type": "string",
-                    "default": "default",
-                    "description": "Target engine ID or 'default' for universal credits"
-                  }
-                },
-                "required": [
-                  "signature",
-                  "wallet"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Solana USDC payment verified and credits granted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "credits": {
-                      "type": "integer"
-                    },
-                    "amountUsdc": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "credits"
-                  ]
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment verification failed or insufficient USDC received"
-          }
-        }
-      }
-    },
-    "/api/solana/whales": {
-      "get": {
-        "operationId": "whale_tracker",
-        "summary": "Live top circulating Solana Mainnet whales & wallet audit (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/rug-check": {
-      "get": {
-        "operationId": "rug_check",
-        "summary": "Live SPL token mint authority, freeze authority & top holders (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/fees": {
-      "get": {
-        "operationId": "priority_fees",
-        "summary": "Live Solana Mainnet priority fee oracle in microLamports (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/pools": {
-      "get": {
-        "operationId": "fresh_pools",
-        "summary": "Live newly launched Solana DEX token pool profiles (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/alpha": {
-      "get": {
-        "operationId": "mempool_alpha",
-        "summary": "Live Solana epoch TPS & top SOL/USDC liquidity pairs (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/boosts": {
-      "get": {
-        "operationId": "token_boosts",
-        "summary": "Live boosted Solana token radar from DexScreener (0.0001 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009500"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet JSON response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.0001 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/rpc/solana": {
-      "post": {
-        "operationId": "solana_rpc_proxy",
-        "summary": "Safelisted Solana Mainnet JSON-RPC proxy (0.00009 SOL vs $0.15 competitors)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009000"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/rpc/blockhash": {
-      "get": {
-        "operationId": "solana_blockhash",
-        "summary": "Cached sub-second Solana Mainnet latest blockhash (0.00009 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009000"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/rpc/quote": {
-      "get": {
-        "operationId": "solana_swap_quote",
-        "summary": "Live Solana DEX swap liquidity & price route quote (0.00009 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009000"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/rpc/price": {
-      "get": {
-        "operationId": "solana_token_price",
-        "summary": "Live Solana SPL token USD price & DEX pair feed (0.00009 SOL)",
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "USD",
-            "amount": "0.009000"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live Solana Mainnet response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.00009 SOL on Solana Mainnet)"
-          }
-        }
-      }
-    },
-    "/api/solana/gpu-rates": {
-      "get": {
-        "operationId": "gpu_rental_rates",
-        "summary": "Live cloud GPU rental hourly pricing & availability (H100, A100, RTX 4090) — 0.00013 SOL",
-        "parameters": [
-          {
-            "name": "gpu",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Optional GPU filter (e.g., H100, A100, 4090)"
-          }
-        ],
-        "x-payment-info": {
-          "price": {
-            "mode": "fixed",
-            "currency": "SOL",
-            "amount": "0.000130"
-          },
-          "protocols": [
-            {
-              "x402": {}
-            }
-          ]
-        },
-        "responses": {
-          "200": {
-            "description": "Live GPU rental pricing JSON",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment Required (0.00013 SOL on Solana Mainnet)"
-          }
-        }
+        "operationId": "postSolanaRpc",
+        "summary": "Call an allowlisted read-only Solana RPC method",
+        "parameters": [{ "name": "method", "in": "path", "required": true, "schema": { "const": "solana" } }],
+        "responses": { "200": { "description": "RPC response" }, "402": { "description": "Payment required" } }
       }
     }
   }

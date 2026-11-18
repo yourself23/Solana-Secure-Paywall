@@ -33,7 +33,7 @@ export default function TransactionHistory() {
         return (
             <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-xl text-center text-slate-400 mt-6">
                 <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>Connect your wallet to view recent paywall transaction history on Solana.</p>
+                <p>Connect your wallet to view recent Solana transactions.</p>
             </div>
         );
     }
@@ -43,7 +43,7 @@ export default function TransactionHistory() {
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-2">
                     <History className="w-5 h-5 text-indigo-400" />
-                    <h3 className="text-lg font-semibold text-white">Recent Solana Paywall Transactions</h3>
+                    <h3 className="text-lg font-semibold text-white">Recent Solana Transactions</h3>
                 </div>
                 <button
                     onClick={fetchHistory}
@@ -71,7 +71,7 @@ export default function TransactionHistory() {
                 <div className="space-y-3">
                     {signatures.map((sig) => {
                         const shortSig = `${sig.signature.slice(0, 8)}...${sig.signature.slice(-8)}`;
-                        const blockTimeNum = sig.blockTime as unknown as number | null;
+                        const blockTimeNum = sig.blockTime;
                         const dateStr = blockTimeNum ? new Date(blockTimeNum * 1000).toLocaleString() : 'Recent';
                         const isSuccess = !sig.err;
 
