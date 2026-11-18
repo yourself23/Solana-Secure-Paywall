@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { Keypair, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -7,6 +8,19 @@ import paywall from '../api/paywall.js';
 import invoke from '../api/v1/invoke.js';
 import { handleX402 } from '../api/_lib/x402-settle.js';
 import { runLiveSolanaEngine } from '../api/_lib/engines.js';
+
+test('Solana dependencies load through CommonJS without requiring ES modules', () => {
+  const flags = process.allowedNodeEnvironmentFlags.has('--no-experimental-require-module')
+    ? ['--no-experimental-require-module']
+    : [];
+  execFileSync(process.execPath, [...flags, '-e', `
+    const { createRequire } = require('node:module');
+    const rpcRequire = createRequire(require.resolve('rpc-websockets'));
+    const id = rpcRequire('uuid').v1();
+    if (!rpcRequire('uuid').validate(id)) throw new Error('Invalid RPC websocket UUID');
+    require('@solana/web3.js');
+  `], { stdio: 'pipe' });
+});
 
 const wallet = Keypair.generate();
 const receiver = Keypair.generate().publicKey.toBase58();

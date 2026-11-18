@@ -8,7 +8,7 @@ Copy `.env.example` to `.env` and configure `TREASURY_ADDRESS`, Upstash Redis, a
 
 Run `npm start` for the local server with real API handlers, or deploy the Vercel functions. `npm run dev` serves only the Vite frontend.
 
-The GitHub Actions production workflow runs on pushes to `main`, checks the code and deploys to the linked Vercel project. It requires the `VERCEL_TOKEN` repository secret and production environment variables configured in Vercel; a successful build alone does not confirm that Redis, the facilitator or Jupiter are configured. The external sniper container is not deployed by this workflow.
+The GitHub Actions production workflow runs on pushes to `main`, checks the code and deploys to the linked Vercel project. Vercel uses `npm ci` and `package-lock.json` to install the CommonJS-compatible UUID override required by Solana's RPC dependency. The workflow requires the `VERCEL_TOKEN` repository secret and production environment variables configured in Vercel; a successful build alone does not confirm that Redis, the facilitator or Jupiter are configured. The external sniper container is not deployed by this workflow.
 
 ## Payments
 

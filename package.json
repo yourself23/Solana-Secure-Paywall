@@ -50,6 +50,9 @@
     "ajv": "^8.18.0",
     "minimatch": "^11.0.1",
     "glob": "^14.0.2",
-    "@fastify/busboy": "^3.2.2"
+    "@fastify/busboy": "^3.2.2",
+    "rpc-websockets": {
+      "uuid": "9.0.1"
+    }
   }
 }
