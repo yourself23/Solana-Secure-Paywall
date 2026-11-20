@@ -27,6 +27,7 @@ jobs:
           npx tsc --noEmit
           npx tsc --noEmit -p api/tsconfig.json
           node --import tsx --test tests/payments.test.ts tests/sniper.test.ts
+          node --test tests/mcp-stdio.test.mjs
 
       - name: Deploy to Vercel (Production)
         if: github.ref == 'refs/heads/main'

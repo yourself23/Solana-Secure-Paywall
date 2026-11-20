@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getAvailableEngines, runLiveSolanaEngine } from './_lib/engines.js';
 import { handleX402 } from './_lib/x402-settle.js';
+import { DEFAULT_PAYMENT_AMOUNT_SOL } from './_lib/pricing.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST for MCP requests' });
@@ -32,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const receiver = process.env.TREASURY_ADDRESS?.trim();
     if (!receiver) return res.status(503).json({ error: 'TREASURY_ADDRESS is not configured' });
-    const amount = Number(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+    const amount = Number(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
     const lamports = Math.round(amount * 1_000_000_000);
     return handleX402(req, res, receiver, lamports, async () => {
       const data = await runLiveSolanaEngine(toolName, process.env.SOLANA_RPC_URL?.trim() || 'https://api.mainnet-beta.solana.com', params?.arguments || {});

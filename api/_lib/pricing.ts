@@ -1,0 +1,1 @@
+export const DEFAULT_PAYMENT_AMOUNT_SOL = '0.1';

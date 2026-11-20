@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PublicKey } from '@solana/web3.js';
 import { getAvailableEngines } from './_lib/engines.js';
+import { DEFAULT_PAYMENT_AMOUNT_SOL } from './_lib/pricing.js';
 
 // Public health & treasury metadata only — earnings remain private in authenticated /api/telemetry
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const receiver = process.env.TREASURY_ADDRESS?.trim();
-  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
   const lamports = Math.round(amountSol * 1_000_000_000);
   if (!receiver || !Number.isSafeInteger(lamports) || lamports <= 0 || Math.abs(lamports / 1_000_000_000 - amountSol) > 1e-12) {
     return res.status(503).json({ error: 'Payment configuration missing or invalid' });

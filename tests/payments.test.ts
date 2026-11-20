@@ -6,6 +6,8 @@ import { Keypair, SystemProgram, TransactionMessage, VersionedTransaction } from
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import paywall from '../api/paywall.js';
 import invoke from '../api/v1/invoke.js';
+import mcp from '../api/mcp.js';
+import sales from '../api/sales.js';
 import { handleX402 } from '../api/_lib/x402-settle.js';
 import { runLiveSolanaEngine } from '../api/_lib/engines.js';
 
@@ -48,6 +50,7 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
 process.env.PAYWALL_SECRET = 'test-secret';
 process.env.X402_FACILITATOR_URL = 'https://facilitator.test';
 process.env.APP_URL = 'https://example.test';
+process.env.PAYMENT_AMOUNT_SOL = '0.001';
 
 function response() {
   const result: { statusCode: number; body: any; headers: Record<string, string> } = { statusCode: 0, body: undefined, headers: {} };
@@ -117,6 +120,33 @@ globalThis.fetch = async (input, init) => {
   if (url === 'https://mainnet.block-engine.jito.wtf/api/v1/getTipAccounts') return Response.json({ result: [receiver] });
   throw new Error(`Unexpected URL ${url}`);
 };
+
+test('all payment endpoints default to 0.1 SOL', async () => {
+  delete process.env.PAYMENT_AMOUNT_SOL;
+  try {
+    const metadata = response();
+    await sales(request({}), metadata.res);
+    assert.equal(metadata.result.body.amountSol, 0.1);
+    assert.equal(metadata.result.body.lamports, 100000000);
+
+    const prepaid = response();
+    await paywall(request({ signature, wallet: wallet.publicKey.toBase58(), walletProof: proof }), prepaid.res);
+    assert.equal(prepaid.result.statusCode, 402);
+    assert.match(prepaid.result.body.error, /100000000 lamports/);
+
+    const invokeResult = response();
+    await invoke(request({}), invokeResult.res);
+    assert.equal(invokeResult.result.statusCode, 402);
+    assert.equal(invokeResult.result.body.accepts[0].amount, '100000000');
+
+    const mcpResult = response();
+    await mcp(request({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'whale-wallet-tracker' } }), mcpResult.res);
+    assert.equal(mcpResult.result.statusCode, 402);
+    assert.equal(mcpResult.result.body.accepts[0].amount, '100000000');
+  } finally {
+    process.env.PAYMENT_AMOUNT_SOL = '0.001';
+  }
+});
 
 test('prepaid redemption is recoverable, wallet-bound, and usable for invoke', async () => {
   const body = { signature, wallet: wallet.publicKey.toBase58(), walletProof: proof };

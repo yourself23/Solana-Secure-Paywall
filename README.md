@@ -4,7 +4,7 @@ Solana Mainnet analytics and unsigned Jupiter swap plans with paid API access. P
 
 ## Configuration
 
-Copy `.env.example` to `.env` and configure `TREASURY_ADDRESS`, Upstash Redis, a long random `PAYWALL_SECRET`, and `APP_URL`. Keep `PAYWALL_SECRET` stable so a payment can be redeemed again after an interrupted response. Configure `SOLANA_RPC_URL` and `VITE_SOLANA_RPC_URL` for Solana Mainnet; the public RPC is the default. Set `JUPITER_API_KEY` for swap plans and `X402_FACILITATOR_URL` for a facilitator supporting Solana x402 v2 exact payments and wSOL. The treasury needs a wSOL associated token account for x402 payments. The live treasury and pass price are available from `GET /api/sales`; `PAYMENT_AMOUNT_SOL` defaults to 0.001 SOL for a 10-call pass or one invoke request.
+Copy `.env.example` to `.env` and configure `TREASURY_ADDRESS`, Upstash Redis, a long random `PAYWALL_SECRET`, and `APP_URL`. Keep `PAYWALL_SECRET` stable so a payment can be redeemed again after an interrupted response. Configure `SOLANA_RPC_URL` and `VITE_SOLANA_RPC_URL` for Solana Mainnet; the public RPC is the default. Set `JUPITER_API_KEY` for swap plans and `X402_FACILITATOR_URL` for a facilitator supporting Solana x402 v2 exact payments and wSOL. The treasury needs a wSOL associated token account for x402 payments. The live treasury and pass price are available from `GET /api/sales`; `PAYMENT_AMOUNT_SOL` defaults to 0.1 SOL (100000000 lamports) for a 10-call pass or one invoke request.
 
 Run `npm start` for the local server with real API handlers, or deploy the Vercel functions. `npm run dev` serves only the Vite frontend.
 
@@ -25,6 +25,8 @@ The paid sniper-daemon engine, MEV arbitrage, flash-loan arbitrage, mempool scan
 The mint auditor, holder analyzer, liquidity pool sniffer, and volume surge detector require a `mint` parameter; the `/api/solana/rug-check` and `/api/solana/pools` routes also require it.
 
 Discovery: `/openapi.json`, `/.well-known/x402.json`, `/SKILL.md`, `/llms.txt`, and MCP at `/api/mcp`.
+
+The root Docker image provides a minimal MCP stdio discovery endpoint: `docker build -t solana-paywall-mcp .` and `docker run --rm -i solana-paywall-mcp`. It supports initialization and returns an empty tool list; paid tools are available through the HTTP MCP endpoint, not this container.
 
 ## Operator sniper worker
 

@@ -1,4 +1,5 @@
 import { handleX402 } from "../_lib/x402-settle.js";
+import { DEFAULT_PAYMENT_AMOUNT_SOL } from "../_lib/pricing.js";
 import { AVAILABLE_ENGINES, getAvailableEngines, runLiveSolanaEngine } from "../_lib/engines.js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createPublicKey, verify } from 'node:crypto';
@@ -87,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+  const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
   const units = Math.round(amountSol * 1_000_000_000);
   const lib = ((req.query?.libraryId || req.body?.libraryId || 'whale-wallet-tracker') as string).trim();
 

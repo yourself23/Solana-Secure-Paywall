@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { PublicKey } from '@solana/web3.js';
+import { DEFAULT_PAYMENT_AMOUNT_SOL } from './_lib/pricing.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -35,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch {
     return res.status(403).json({ error: 'Invalid wallet or wallet proof' });
   }
-  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || '0.001');
+  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
   const lamports = Math.round(amountSol * 1_000_000_000);
   if (!Number.isSafeInteger(lamports) || lamports <= 0 || Math.abs(lamports / 1_000_000_000 - amountSol) > 1e-12) {
     return res.status(500).json({ error: 'Invalid PAYMENT_AMOUNT_SOL configuration' });
