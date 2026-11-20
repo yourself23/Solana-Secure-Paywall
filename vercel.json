@@ -6,6 +6,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/mcp/.well-known/glama.json",
+      "destination": "/.well-known/glama.json"
+    },
+    {
       "source": "/api/solana/gpu-rates",
       "destination": "/api/solana/gpu-rates"
     },
@@ -27,6 +31,24 @@
     }
   ],
   "headers": [
+    {
+      "source": "/.well-known/glama.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "source": "/api/mcp/.well-known/glama.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
