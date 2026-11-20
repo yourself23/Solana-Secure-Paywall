@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { PublicKey } from '@solana/web3.js';
 import { DEFAULT_PAYMENT_AMOUNT_SOL } from './_lib/pricing.js';
+import { notifyPaymentReceived } from './_lib/notify.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -113,5 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const stored = await upstash(['GET', `apikey:${apiKey}`]);
   if (!stored.result) return res.status(500).json({ error: 'Issued API key could not be retrieved' });
+  if (issued.result === 1) {
+    await notifyPaymentReceived({ amountLamports: Number(requiredLamports), signature, source: '/api/paywall (10-credit pass)', payer: wallet });
+  }
   return res.status(200).json({ success: true, apiKey, credits: JSON.parse(stored.result).credits, asset: 'SOL', amountSol, lamports: Number(requiredLamports) });
 }

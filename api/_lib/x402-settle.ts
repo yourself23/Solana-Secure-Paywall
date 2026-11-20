@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PublicKey } from '@solana/web3.js';
+import { notifyPaymentReceived } from './notify.js';
 
 const NETWORK = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 const WRAPPED_SOL = 'So11111111111111111111111111111111111111112';
@@ -97,6 +98,9 @@ export async function handleX402(
       redis.call('HINCRBYFLOAT', KEYS[2], 'total_wsol_earned', ARGV[2])
       return 1
     `, 2, key, 'telemetry:stats', JSON.stringify({ state: 'complete', requestHash, paymentResponse, body }), lamports / 1_000_000_000]);
+    if (typeof body.txSignature === 'string' && body.txSignature) {
+      await notifyPaymentReceived({ amountLamports: lamports, signature: body.txSignature, source: req.url || 'x402-v2 endpoint' });
+    }
     res.setHeader('PAYMENT-RESPONSE', paymentResponse);
     return res.status(200).json(body);
   };
