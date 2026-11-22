@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const signature = String(req.body?.signature || '').trim();
   if (!signature || signature.length < 64) {
-    return res.status(400).json({ error: 'Valid Solana transaction signature required' });
+    return res.status(402).json({ x402Version: 2, error: "Payment Required (x402 Native SOL or USDC)", accepts: [{ scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "So11111111111111111111111111111111111111112", maxAmountRequired: "100000000", payTo: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" }, { scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", maxAmountRequired: "10000000", payTo: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" }], treasury: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" });
   }
   if (!receiver || !redisUrl || !redisToken || !paywallSecret) {
     return res.status(500).json({ error: 'Treasury, payment store or PAYWALL_SECRET unconfigured' });
