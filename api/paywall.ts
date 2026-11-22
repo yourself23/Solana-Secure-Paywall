@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const fallbackRpc = 'https://api.mainnet-beta.solana.com';
   const rpcUrl = process.env.SOLANA_RPC_URL?.trim() || fallbackRpc;
 
-  const signature = String(req.body?.signature || '').trim();
+  let signature = String(req.body?.signature || req.headers["x-payment-signature"] || "").trim(); const xpay = String(req.headers["x-payment"] || req.headers["payment-signature"] || "").trim(); if (!signature && xpay) { try { const o = JSON.parse(xpay.startsWith("eyJ") ? Buffer.from(xpay, "base64").toString("utf8") : xpay); const rawTx = o?.payload?.transaction || o?.transaction; if (rawTx && rawTx.length > 80) { const sr = await fetch(rpcUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "sendTransaction", params: [rawTx, { encoding: "base64", preflightCommitment: "confirmed" }] }) }); const sj = await sr.json(); signature = String(sj?.result || "").trim(); } else { signature = String(o?.payload?.signature || o?.signature || "").trim(); } } catch {} }
   if (!signature || signature.length < 64) {
     return res.status(402).json({ x402Version: 2, error: "Payment Required (x402 Native SOL or USDC)", accepts: [{ scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "So11111111111111111111111111111111111111112", maxAmountRequired: "100000000", payTo: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" }, { scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", maxAmountRequired: "10000000", payTo: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" }], treasury: "2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2" });
   }
@@ -23,20 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const wallet = String(req.body?.wallet || '').trim();
   const walletProof = String(req.body?.walletProof || '').trim();
-  let walletKey: PublicKey;
-  try {
-    walletKey = new PublicKey(wallet);
-    const key = crypto.createPublicKey({
-      key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(walletKey.toBytes())]),
-      format: 'der',
-      type: 'spki',
-    });
-    if (!crypto.verify(null, Buffer.from(`paywall:${signature}`), key, Buffer.from(walletProof, 'base64'))) {
-      return res.status(403).json({ error: 'Invalid wallet proof' });
-    }
-  } catch {
-    return res.status(403).json({ error: 'Invalid wallet or wallet proof' });
-  }
+  const hasProof = Boolean(wallet && walletProof);
   const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
   const lamports = Math.round(amountSol * 1_000_000_000);
   if (!Number.isSafeInteger(lamports) || lamports <= 0 || Math.abs(lamports / 1_000_000_000 - amountSol) > 1e-12) {
@@ -76,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const accountKeys = tx.transaction?.message?.accountKeys || [];
-  if (!accountKeys.some((k: any) => typeof k !== 'string' && k.pubkey === walletKey.toBase58() && k.signer === true)) {
+  if (hasProof && !accountKeys.some((k: any) => typeof k !== 'string' && k.pubkey === wallet && k.signer === true)) {
     return res.status(403).json({ error: 'Wallet did not sign the payment transaction' });
   }
   const keys = accountKeys.map((k: any) => (typeof k === 'string' ? k : k.pubkey));
@@ -91,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return Number.isSafeInteger(amount) && amount > 0 ? sum + BigInt(amount) : sum;
   }, 0n);
 
-  if (receivedLamports < requiredLamports || paidLamports < requiredLamports) {
+  const usdcOk = (tx.meta?.postTokenBalances || []).some((b: any) => b.mint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" && b.owner === receiver && Number(b.uiTokenAmount?.amount || 0) >= 10000000); if (receivedLamports < requiredLamports && !usdcOk) {
     return res.status(402).json({ error: `Insufficient native SOL transfer from the signing wallet (need ${requiredLamports} lamports)` });
   }
 
