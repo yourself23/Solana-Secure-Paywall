@@ -37,6 +37,9 @@ const store = new Map<string, string>();
 let settlementCalls = 0;
 let failRpc = false;
 let settlementPending = false;
+let rpcTransaction: any;
+let broadcast: any;
+let broadcastError = false;
 const plan = new VersionedTransaction(new TransactionMessage({
   payerKey: wallet.publicKey,
   recentBlockhash: Keypair.generate().publicKey.toBase58(),
@@ -77,8 +80,8 @@ globalThis.fetch = async (input, init) => {
       if (args.includes('NX') && store.has(args[0])) result = null;
       else { store.set(args[0], args[1]); result = 'OK'; }
     } else if (op === 'EVAL' && args[0].includes("redis.call('EXISTS', KEYS[2])")) {
-      const [, , sigKey, key, , fingerprint, record] = args;
-      if (store.has(sigKey)) result = store.get(sigKey) === fingerprint && store.has(key) ? 2 : 0;
+      const [, , sigKey, key, , fingerprint, record, , recoverable] = args;
+      if (store.has(sigKey)) result = recoverable === '1' && store.get(sigKey) === fingerprint && store.has(key) ? 2 : 0;
       else { store.set(sigKey, fingerprint); store.set(key, record); result = 1; }
     } else if (op === 'EVAL' && args[0].includes("record.credits = record.credits - 1")) {
       const key = args[2];
@@ -94,8 +97,13 @@ globalThis.fetch = async (input, init) => {
   }
   if (url === 'https://rpc.test') {
     if (failRpc) throw new Error('RPC unavailable');
-    const method = JSON.parse(String(init?.body)).method;
-    if (method === 'getTransaction') return Response.json({ result: {
+    const rpcRequest = JSON.parse(String(init?.body));
+    const method = rpcRequest.method;
+    if (method === 'sendTransaction') {
+      broadcast = rpcRequest;
+      return Response.json(broadcastError ? { error: { message: 'broadcast rejected' } } : { result: '3'.repeat(88) });
+    }
+    if (method === 'getTransaction') return Response.json({ result: rpcTransaction ?? {
       meta: { err: null, preBalances: [2000000, 0], postBalances: [995000, 1000000] },
       transaction: { message: {
         accountKeys: [{ pubkey: wallet.publicKey.toBase58(), signer: true }, { pubkey: receiver, signer: false }],
@@ -168,13 +176,123 @@ test('prepaid redemption is recoverable, wallet-bound, and usable for invoke', a
   const invalid = response();
   await paywall(request({ ...body, walletProof: 'invalid' }), invalid.res);
   assert.equal(invalid.result.statusCode, 403);
+  const missingProof = response();
+  await paywall(request({ signature, wallet: wallet.publicKey.toBase58() }), missingProof.res);
+  assert.equal(missingProof.result.statusCode, 403);
+  const missingWallet = response();
+  await paywall(request({ signature, walletProof: proof }), missingWallet.res);
+  assert.equal(missingWallet.result.statusCode, 403);
+});
+
+test('prepaid challenge advertises configured assets and an x402 v2 header', async () => {
+  const result = response();
+  await paywall(request({}), result.res);
+  assert.equal(result.result.statusCode, 402);
+  const challenge = result.result.body;
+  assert.equal(challenge.x402Version, 2);
+  assert.deepEqual(challenge.accepts.map((item: any) => [item.asset, item.amount, item.payTo]), [
+    ['So11111111111111111111111111111111111111112', '1000000', receiver],
+    ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', '10000000', receiver],
+  ]);
+  assert.deepEqual(JSON.parse(Buffer.from(result.result.headers['payment-required'], 'base64').toString()), {
+    x402Version: 2, resource: challenge.resource, accepts: challenge.accepts,
+  });
+  delete process.env.TREASURY_ADDRESS;
+  try {
+    const fallback = response();
+    await paywall(request({}), fallback.res);
+    assert.ok(fallback.result.body.accepts.every((item: any) => item.payTo === '2Z6xwB633pMFj3iMj1pUz2ikGrVGGTun7AY3qZDNZip2'));
+  } finally { process.env.TREASURY_ADDRESS = receiver; }
+});
+
+test('walletless payment broadcasts and issues only once', async () => {
+  const signed = VersionedTransaction.deserialize(plan.serialize());
+  signed.sign([wallet]);
+  const transaction = Buffer.from(signed.serialize()).toString('base64');
+  const header = Buffer.from(JSON.stringify({ x402Version: 2, payload: { transaction } })).toString('base64');
+  const paid = response();
+  await paywall(request({}, { 'x-payment': header }), paid.res);
+  assert.equal(paid.result.statusCode, 200);
+  assert.match(paid.result.body.apiKey, /^sol_live_/);
+  assert.equal(paid.result.body.credits, 10);
+  assert.deepEqual(broadcast.params, [transaction, { encoding: 'base64', skipPreflight: true, preflightCommitment: 'confirmed' }]);
+  const retry = response();
+  await paywall(request({}, { 'payment-signature': header }), retry.res);
+  assert.equal(retry.result.statusCode, 409);
+
+  broadcastError = true;
+  try {
+    const failure = response();
+    await paywall(request({}, { 'payment-signature': header }), failure.res);
+    assert.equal(failure.result.statusCode, 503);
+    assert.match(failure.result.body.error, /broadcast rejected/);
+  } finally { broadcastError = false; }
+});
+
+test('concurrent proofless redemptions issue only one key', async () => {
+  const first = response();
+  const second = response();
+  const body = { signature: '6'.repeat(88) };
+  await Promise.all([paywall(request(body), first.res), paywall(request(body), second.res)]);
+  assert.deepEqual([first.result.statusCode, second.result.statusCode].sort(), [200, 409]);
+  const issued = first.result.statusCode === 200 ? first.result : second.result;
+  assert.equal(issued.body.credits, 10);
+});
+
+test('USDC redemption checks the net treasury increase, not its existing balance', async () => {
+  const tokenBalance = (amount: string, owner = receiver) => ({
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', owner, uiTokenAmount: { amount },
+  });
+  rpcTransaction = {
+    meta: { err: null, preBalances: [0], postBalances: [0],
+      preTokenBalances: [tokenBalance('30000000')], postTokenBalances: [tokenBalance('39999999')] },
+    transaction: { message: { accountKeys: [{ pubkey: receiver, signer: false }], instructions: [] } },
+  };
+  try {
+    const insufficient = response();
+    await paywall(request({ signature: '4'.repeat(88) }), insufficient.res);
+    assert.equal(insufficient.result.statusCode, 402);
+    assert.equal(store.has(`spent_sol_sig:${'4'.repeat(88)}`), false);
+    rpcTransaction.meta.postTokenBalances = [tokenBalance('40000000')];
+    const paid = response();
+    await paywall(request({ signature: '4'.repeat(88) }), paid.res);
+    assert.equal(paid.result.statusCode, 200);
+    assert.equal(paid.result.body.asset, 'USDC');
+    assert.equal(paid.result.body.amount, '10000000');
+    const replay = response();
+    await paywall(request({ signature: '4'.repeat(88) }), replay.res);
+    assert.equal(replay.result.statusCode, 409);
+    rpcTransaction.meta.preTokenBalances = [{ ...tokenBalance('30000000'), owner: undefined }];
+    const incomplete = response();
+    await paywall(request({ signature: '5'.repeat(88) }), incomplete.res);
+    assert.equal(incomplete.result.statusCode, 503);
+  } finally { rpcTransaction = undefined; }
+});
+
+test('MCP advertises all configured tools with their actual inputs', async () => {
+  process.env.JUPITER_API_KEY = 'test-jupiter-key';
+  try {
+    const result = response();
+    await mcp(request({ jsonrpc: '2.0', id: 1, method: 'tools/list' }), result.res);
+    const tools = result.result.body.result.tools;
+    assert.equal(tools.length, 19);
+    const byName = (name: string) => tools.find((tool: any) => tool.name === name).inputSchema;
+    assert.deepEqual(byName('limit-order-sniper').required, ['inputMint', 'outputMint', 'userPublicKey', 'amount', 'takingAmount']);
+    assert.ok(byName('validator-stake-tracker').properties.votePubkey);
+    assert.deepEqual(byName('priority-fee-oracle').properties, {});
+    const invalid = response();
+    await mcp(request({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'priority-fee-oracle', arguments: [] } }), invalid.res);
+    assert.equal(invalid.result.body.error.code, -32602);
+  } finally { delete process.env.JUPITER_API_KEY; }
 });
 
 test('RPC failure does not consume an unverified payment', async () => {
   const newSignature = '2'.repeat(88);
   const signed = crypto.sign(null, Buffer.from(`paywall:${newSignature}`), privateKey).toString('base64');
   failRpc = true;
-  await assert.rejects(() => paywall(request({ signature: newSignature, wallet: wallet.publicKey.toBase58(), walletProof: signed }), response().res), /RPC unavailable/);
+  const result = response();
+  await paywall(request({ signature: newSignature, wallet: wallet.publicKey.toBase58(), walletProof: signed }), result.res);
+  assert.equal(result.result.statusCode, 503);
   failRpc = false;
   assert.equal(store.has(`spent_sol_sig:${newSignature}`), false);
 });
@@ -223,6 +341,32 @@ test('x402 reconciles a pending settlement without charging again', async () => 
   assert.equal(retry.result.statusCode, 200);
   assert.equal(retry.result.body.data, 'recovered');
   assert.equal(settlementCalls, previousCalls);
+});
+
+test('MCP executes a paid tool directly through x402 without a prepaid key', async () => {
+  const body = { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'whale-wallet-tracker', arguments: {} } };
+  const unpaid = request(body);
+  unpaid.url = '/api/mcp';
+  const challenge = response();
+  await mcp(unpaid, challenge.res);
+  assert.equal(challenge.result.statusCode, 402);
+  const quote = JSON.parse(Buffer.from(challenge.result.headers['payment-required'], 'base64').toString());
+  const payload = { x402Version: 2, resource: quote.resource, accepted: quote.accepts[0], payload: { transaction: Buffer.from([7, 8, 9]).toString('base64') } };
+  const paid = request(body, { 'x-payment': Buffer.from(JSON.stringify(payload)).toString('base64') });
+  paid.url = '/api/mcp';
+  const result = response();
+  await mcp(paid, result.res);
+  assert.equal(result.result.statusCode, 200);
+  assert.equal(result.result.body.result.content[0].type, 'text');
+  assert.equal(JSON.parse(result.result.body.result.content[0].text).engine, 'whale-wallet-tracker');
+  assert.ok(result.result.headers['payment-response']);
+  const retry = request(body, { 'payment-signature': Buffer.from(JSON.stringify(payload)).toString('base64') });
+  retry.url = '/api/mcp';
+  const replay = response();
+  const before = settlementCalls;
+  await mcp(retry, replay.res);
+  assert.equal(replay.result.statusCode, 200);
+  assert.equal(settlementCalls, before);
 });
 
 test('unimplemented engines fail before payment', async () => {

@@ -1,5 +1,5 @@
 # Solana Secure Paywall
-> Solana Mainnet analytics and unsigned Jupiter swap plans. Native SOL prepaid passes and wrapped SOL x402 v2 payments.
+> Solana Mainnet analytics and unsigned Jupiter swap plans. Prepaid passes accept native SOL or USDC; direct x402 v2 payments use wrapped SOL.
 
 - Live payment configuration and available engines: /api/sales
 - Discovery manifest: /.well-known/x402.json

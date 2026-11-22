@@ -31,5 +31,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try { return JSON.parse(item); } catch { return { raw: item }; }
   });
 
-  return res.status(200).json({ treasury: process.env.TREASURY_ADDRESS, stats, recentEvents: events, serverTime: new Date().toISOString() });
+  return res.status(200).json({ treasury: process.env.TREASURY_ADDRESS?.trim(), stats, recentEvents: events, serverTime: new Date().toISOString() });
 }

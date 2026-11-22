@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await upstash(['HINCRBY', 'telemetry:stats', type, 1]).catch(() => {});
   };
 
-  const amountSol = parseFloat(process.env.PAYMENT_AMOUNT_SOL || DEFAULT_PAYMENT_AMOUNT_SOL);
+  const amountSol = Number(process.env.PAYMENT_AMOUNT_SOL?.trim() || DEFAULT_PAYMENT_AMOUNT_SOL);
   const units = Math.round(amountSol * 1_000_000_000);
   const lib = ((req.query?.libraryId || req.body?.libraryId || 'whale-wallet-tracker') as string).trim();
 

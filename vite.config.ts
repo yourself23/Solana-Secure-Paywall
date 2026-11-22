@@ -20,8 +20,8 @@ export default defineConfig(() => {
       include: ['@solana/web3.js', '@solana/wallet-adapter-react', '@solana/wallet-adapter-react-ui'],
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: process.env.DISABLE_HMR?.trim() !== 'true',
+      watch: process.env.DISABLE_HMR?.trim() === 'true' ? null : {},
     },
   };
 });

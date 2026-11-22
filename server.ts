@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { fileURLToPath } from 'node:url';
 import { createServer as createViteServer } from 'vite';
 import paywall from './api/paywall.js';
 import invoke from './api/v1/invoke.js';
@@ -16,7 +17,7 @@ import sniperStatus from './api/sniper-status.js';
 async function startServer() {
   const app = express();
   app.use(express.json());
-  const port = Number(process.env.PORT || 3000);
+  const port = Number(process.env.PORT?.trim() || 3000);
 
   const route = (handler: (req: VercelRequest, res: VercelResponse) => Promise<unknown>) =>
     (req: Request, res: Response, next: NextFunction) => {
@@ -28,6 +29,7 @@ async function startServer() {
 
   app.all('/api/paywall', route(paywall));
   app.all('/api/v1/invoke', route(invoke));
+  app.get('/api/mcp/.well-known/glama.json', (_req, res) => res.sendFile(fileURLToPath(new URL('./public/.well-known/glama.json', import.meta.url))));
   app.all('/api/mcp', route(mcp));
   app.all('/api/sales', route(sales));
   app.all('/api/sniper-status', route(sniperStatus));
@@ -46,7 +48,7 @@ async function startServer() {
   const server = app.listen(port, () => {
     const address = server.address();
     const actualPort = typeof address === 'object' && address ? address.port : port;
-    process.env.APP_URL ||= `http://localhost:${actualPort}`;
+    process.env.APP_URL = process.env.APP_URL?.trim() || `http://localhost:${actualPort}`;
     console.log(`Server running on port ${actualPort}`);
   });
 }

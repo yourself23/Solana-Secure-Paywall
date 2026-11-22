@@ -2,9 +2,13 @@
   "version": "2",
   "protocol": "x402",
   "name": "Solana Secure Paywall",
-  "description": "Solana analytics and unsigned Jupiter swap plans. x402 exact payments use wrapped SOL.",
+  "description": "Solana analytics and unsigned Jupiter swap plans. Direct x402 calls use wrapped SOL; prepaid passes accept native SOL or USDC.",
   "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
   "asset": { "symbol": "wSOL", "mint": "So11111111111111111111111111111111111111112", "decimals": 9 },
+  "prepaidAssets": [
+    { "symbol": "SOL", "mint": "So11111111111111111111111111111111111111112", "decimals": 9 },
+    { "symbol": "USDC", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "decimals": 6, "amount": "10000000" }
+  ],
   "configurationEndpoint": "/api/sales",
   "invokeEndpoint": "/api/v1/invoke",
   "prepaidEndpoint": "/api/paywall",

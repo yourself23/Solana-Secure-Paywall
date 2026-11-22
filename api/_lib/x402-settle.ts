@@ -13,7 +13,7 @@ export async function handleX402(
   lamports: number,
   execute: () => Promise<Record<string, unknown>>,
 ) {
-  const facilitator = (process.env.X402_FACILITATOR_URL || 'https://facilitator.payai.network').replace(/\/+$/, '');
+  const facilitator = (process.env.X402_FACILITATOR_URL?.trim() || 'https://facilitator.payai.network').replace(/\/+$/, '');
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!redisUrl || !redisToken) return res.status(503).json({ error: 'Payment store unconfigured' });

@@ -21,16 +21,16 @@ export function loadSniperConfig(env: NodeJS.ProcessEnv): SniperConfig {
   let outputMint: string;
   let userPublicKey: string;
   try {
-    inputMint = new PublicKey(env.SNIPER_INPUT_MINT || '').toBase58();
-    outputMint = new PublicKey(env.SNIPER_OUTPUT_MINT || '').toBase58();
-    userPublicKey = new PublicKey(env.SNIPER_USER_PUBLIC_KEY || '').toBase58();
+    inputMint = new PublicKey(env.SNIPER_INPUT_MINT?.trim() || '').toBase58();
+    outputMint = new PublicKey(env.SNIPER_OUTPUT_MINT?.trim() || '').toBase58();
+    userPublicKey = new PublicKey(env.SNIPER_USER_PUBLIC_KEY?.trim() || '').toBase58();
   } catch {
     throw new Error('Valid SNIPER_INPUT_MINT, SNIPER_OUTPUT_MINT and SNIPER_USER_PUBLIC_KEY are required');
   }
   const amount = env.SNIPER_INPUT_AMOUNT?.trim() || '';
   const minOutputAmount = env.SNIPER_MIN_OUTPUT_AMOUNT?.trim() || '';
-  const slippageBps = Number(env.SNIPER_SLIPPAGE_BPS ?? 50);
-  const intervalMs = Number(env.SNIPER_INTERVAL_MS ?? 30000);
+  const slippageBps = Number(env.SNIPER_SLIPPAGE_BPS?.trim() || 50);
+  const intervalMs = Number(env.SNIPER_INTERVAL_MS?.trim() || 30000);
   if (inputMint === outputMint || !/^[1-9]\d*$/.test(amount) || !/^[1-9]\d*$/.test(minOutputAmount) ||
       !Number.isInteger(slippageBps) || slippageBps < 1 || slippageBps > 10000 ||
       !Number.isSafeInteger(intervalMs) || intervalMs < 5000 || intervalMs > 3600000) {

@@ -1,6 +1,6 @@
 # Solana Secure Paywall
 
-Solana Mainnet analytics and unsigned Jupiter swap plans with paid API access. Prepaid passes use **native SOL**; x402 v2 payments use **wrapped SOL (wSOL)** through the configured facilitator. No service signs or submits a user's swap transaction.
+Solana Mainnet analytics and unsigned Jupiter swap plans with paid API access. Prepaid passes accept **native SOL or USDC**; direct x402 v2 calls use **wrapped SOL (wSOL)** through the configured facilitator. No service signs or submits a user's swap transaction.
 
 ## Configuration
 
@@ -12,7 +12,9 @@ The GitHub Actions production workflow runs on pushes to `main`, checks the code
 
 ## Payments
 
-For prepaid access, transfer the configured amount of native SOL directly from a wallet to the configured treasury. Sign the UTF-8 message `paywall:<transaction signature>` with that same wallet. POST `/api/paywall` with `{"signature":"<transaction signature>","wallet":"<wallet public key>","walletProof":"<base64 Ed25519 signature>"}`. The response includes an `apiKey`; pass it as `x-api-key` to `POST /api/v1/invoke?libraryId=whale-wallet-tracker`. A repeated redemption with the same wallet proof returns the same key without issuing additional credits.
+For prepaid access, transfer the configured amount of native SOL or 10 USDC to the configured treasury. Sign the UTF-8 message `paywall:<transaction signature>` with a wallet that signed the transaction. POST `/api/paywall` with `{"signature":"<transaction signature>","wallet":"<wallet public key>","walletProof":"<base64 Ed25519 signature>"}`. The response includes an `apiKey`; pass it as `x-api-key` to `POST /api/v1/invoke?libraryId=whale-wallet-tracker`. A repeated redemption with the same wallet proof returns the same key without issuing additional credits.
+
+The prepaid endpoint also accepts a base64 JSON `PAYMENT-SIGNATURE` or `X-PAYMENT` header with a fully signed base64 transaction in `payload.transaction`, broadcasts it, and checks its confirmed treasury balance change. A transaction that has not yet confirmed returns 402 with its signature; retry using that signature. Proofless redemptions are first-claim only and cannot be recovered after a lost response. Because transaction signatures are public, an observer can claim **any** eligible payment first by omitting the wallet fields, even if its payer intended to use wallet proof. Wallet proof only authenticates and permits recovery of a claim that has already been issued. Direct facilitator x402 payments, including MCP tool calls, are a separate flow and may require a facilitator fee-payer signature.
 
 For x402 access, request a supported endpoint without payment and use the `PAYMENT-REQUIRED` header to construct an x402 v2 exact payment in wSOL. Send the resulting partially signed payment payload as `PAYMENT-SIGNATURE`. The facilitator verifies and settles the transfer; the response carries `PAYMENT-RESPONSE`. The facilitator and treasury must support wSOL before accepting payments.
 
